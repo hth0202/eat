@@ -571,12 +571,6 @@ function renderToday() {
     <div class="insight-bar">${todayInsight(meals, counts, dayCopy)}</div>
 
     <section class="section">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">기록한 끼니</h2>
-          <p class="section-note">${meals.length ? `${meals.length}끼 기록했어요` : "아직 없어요"}</p>
-        </div>
-      </div>
       ${meals.length ? `<div class="meal-list">${meals.map(renderMealCard).join("")}</div>${renderAddMealCta()}` : renderEmptyTodayCta()}
     </section>
 
@@ -1011,8 +1005,7 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
 function renderFlow() {
   const weekMeals = recentMeals(7);
   const monthMeals = recentMeals(30);
-  const historyGroups = groupedMealsByDate(state.meals).slice(0, 7);
-  const weekCounts = countTags(weekMeals);
+const weekCounts = countTags(weekMeals);
   const weekHighCarbCount = weekMeals.filter((meal) => meal.carbs === "많이").length;
   const weekFastMealCount = weekMeals.filter((meal) => meal.speed === "10분 이내").length;
   const weekBalancedFullnessCount = weekMeals.filter((meal) => meal.fullness === "적당함").length;
@@ -1107,21 +1100,6 @@ function renderFlow() {
       </div>
     </section>
 
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">지난 끼니록</h2>
-          <p class="section-note">날짜를 누르면 홈에서 볼 수 있어요</p>
-        </div>
-      </div>
-      ${
-        historyGroups.length
-          ? `<div class="history-list">
-              ${historyGroups.map(renderHistoryGroup).join("")}
-            </div>`
-          : `<div class="empty">오늘 한 끼를 남기면 여기에 쌓여요.</div>`
-      }
-    </section>
   `;
 }
 
