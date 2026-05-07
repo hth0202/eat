@@ -90,6 +90,16 @@ button {
   padding: max(var(--space-6), env(safe-area-inset-top)) var(--space-4) max(96px, calc(72px + env(safe-area-inset-bottom)));
 }
 
+.shell--settings {
+  padding-bottom: max(var(--space-7), env(safe-area-inset-bottom));
+}
+
+.topbar-title {
+  font-size: var(--text-body);
+  font-weight: 700;
+  color: var(--ink);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -1865,4 +1875,144 @@ p {
 .toast--visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Settings page (full screen, list style) */
+.spage {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.spage-label {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: var(--space-5) 0 var(--space-2) var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spage-sublabel {
+  font-size: var(--text-caption);
+  color: var(--soft);
+  margin: calc(-1 * var(--space-1)) 0 var(--space-2) var(--space-2);
+}
+
+.spage-label-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-soft);
+  padding: 1px 7px;
+  border-radius: 20px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.spage-group {
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+
+.spage-cat-label {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--soft);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  background: var(--surface);
+  letter-spacing: 0.04em;
+}
+
+.spage-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 14px var(--space-4);
+  border: none;
+  border-top: 1px solid var(--rule);
+  background: var(--bg);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 0.12s;
+}
+
+.spage-row:first-child,
+.spage-cat-label + .spage-row {
+  border-top: none;
+}
+
+.spage-row:active {
+  background: var(--surface);
+}
+
+.spage-row--on {
+  background: var(--surface);
+}
+
+.spage-row--empty {
+  color: var(--soft);
+  font-size: var(--text-caption);
+  cursor: default;
+  border-top: none;
+}
+
+.spage-row--btn {
+  gap: var(--space-3);
+  border-top: none;
+}
+
+.spage-row-label {
+  flex: 1;
+  font-size: var(--text-body);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.spage-row--empty .spage-row-label,
+.spage-row--empty {
+  color: var(--soft);
+}
+
+.spage-row-check {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.spage-row-slot {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--primary-soft);
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.spage-row-del {
+  flex-shrink: 0;
+  color: var(--soft);
+}
+
+.spage-text-btn {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  flex-shrink: 0;
 }

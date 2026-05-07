@@ -432,6 +432,15 @@ function closeIcon() {
   `;
 }
 
+function backIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M19 12H5" />
+      <path d="M12 19l-7-7 7-7" />
+    </svg>
+  `;
+}
+
 function checkIcon() {
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -501,22 +510,37 @@ function getSettingsRoot() {
 function render() {
   if (!state) return;
   const root = document.querySelector("#app");
-  root.innerHTML = `
-    <main class="shell">
-      <header class="topbar">
-        <h1 class="wordmark">끼니록</h1>
-        <button class="setting-btn ${settingsOpen ? "active" : ""}" data-toggle-settings aria-label="설정">${gearIcon()}</button>
-      </header>
-      ${activeTab === "today" ? renderToday() : ""}
-      ${activeTab === "flow" ? renderFlow() : ""}
-    </main>
-    ${renderTabs()}
-    ${editor ? renderEditor() : ""}
-    ${mealDetailId ? renderMealDetail() : ""}
-  `;
 
-  getSettingsRoot().innerHTML = settingsOpen ? renderSettingsSheet() : "";
+  if (settingsOpen) {
+    root.innerHTML = `
+      <main class="shell shell--settings">
+        <header class="topbar">
+          <button class="icon-button" data-close-settings aria-label="뒤로">${backIcon()}</button>
+          <h2 class="topbar-title">설정</h2>
+          <div style="width:40px"></div>
+        </header>
+        ${renderSettingsPage()}
+      </main>
+      ${editor ? renderEditor() : ""}
+      ${mealDetailId ? renderMealDetail() : ""}
+    `;
+  } else {
+    root.innerHTML = `
+      <main class="shell">
+        <header class="topbar">
+          <h1 class="wordmark">끼니록</h1>
+          <button class="setting-btn" data-toggle-settings aria-label="설정">${gearIcon()}</button>
+        </header>
+        ${activeTab === "today" ? renderToday() : ""}
+        ${activeTab === "flow" ? renderFlow() : ""}
+      </main>
+      ${renderTabs()}
+      ${editor ? renderEditor() : ""}
+      ${mealDetailId ? renderMealDetail() : ""}
+    `;
+  }
 
+  getSettingsRoot().innerHTML = "";
   bindEvents();
 }
 
@@ -1232,107 +1256,59 @@ function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
   return `이번 주 ${weekMeals.length}끼 기록했어요, 꾸준히 쌓아가고 있어요`;
 }
 
-function renderSettings() {
-  const groups = [
-    { title: "줄이기", category: "줄이기", note: "자주 보이면 다음 끼니에서 조절해요" },
-    { title: "챙기기", category: "챙기기", note: "자주 나오면 좋은 신호예요" },
-    { title: "식사 상황", category: "식사 상황", note: "배달, 외식, 야식 등 식사 상황을 기록해요" },
-    { title: "먹고 나서", category: "먹고 나서", note: "식후 몸 상태를 기록해요" }
-  ];
+function renderSettingsPage() {
+  const categories = ["줄이기", "챙기기", "식사 상황", "먹고 나서"];
+  const googleSvg = `<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>`;
 
   return `
-    <div class="section-head">
-      <div>
-        <h2 class="section-title">태그 설정</h2>
-        <p class="section-note">표시할 항목을 골라두세요</p>
+    <div class="spage">
+
+      <p class="spage-label">홈 화면 요약 <span class="spage-label-badge">${state.trackedTags.length}/${trackedTagLimit}</span></p>
+      <p class="spage-sublabel">탭해서 홈에 크게 표시할 항목을 최대 ${trackedTagLimit}개 골라요</p>
+      <div class="spage-group">
+        ${categories.map((cat) => {
+          const tags = defaultTags.filter((t) => state.selectedTags.includes(t.id) && t.category === cat);
+          if (!tags.length) return "";
+          return `
+            <div class="spage-cat-label">${cat}</div>
+            ${tags.map((tag, i) => `
+              <button class="spage-row ${state.trackedTags.includes(tag.id) ? "spage-row--on" : ""}" data-toggle-tracked="${tag.id}">
+                <span class="spage-row-label">${tag.label}</span>
+                <span class="spage-row-check">${state.trackedTags.includes(tag.id) ? `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 6L9 17l-5-5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor"/></svg>` : ""}</span>
+              </button>
+            `).join("")}
+          `;
+        }).join("")}
       </div>
-    </div>
-    <div class="settings-group">
-        <div class="setting-card">
-          <div class="setting-card-head">
-            <h3>홈 화면 요약</h3>
-            <span>${state.trackedTags.length}/${trackedTagLimit}</span>
-          </div>
-          <p class="section-note">홈 화면에 크게 표시돼요, 최대 ${trackedTagLimit}개</p>
-          <div class="tracked-group-list">
-            ${groups
-              .map(
-                (group) => `
-                  <div class="tracked-group">
-                    <p>${group.title}</p>
-                    <div class="chip-grid">
-                      ${defaultTags
-                        .filter((tag) => state.selectedTags.includes(tag.id) && tag.category === group.category)
-                        .map(
-                          (tag) => `
-                            <button class="chip ${tag.group} ${state.trackedTags.includes(tag.id) ? "active" : ""}" data-toggle-tracked="${tag.id}">
-                              ${tag.label}
-                            </button>
-                          `
-                        )
-                        .join("")}
-                    </div>
-                  </div>
-                `
-              )
-              .join("")}
-          </div>
-        </div>
 
-        <div class="setting-card">
-          <div class="setting-card-head">
-            <h3>즐겨찾기</h3>
-            <span>${state.favorites.length}개</span>
+      <p class="spage-label">즐겨찾기 <span class="spage-label-badge">${state.favorites.length}개</span></p>
+      <div class="spage-group">
+        ${state.favorites.length ? state.favorites.map((fav) => `
+          <div class="spage-row spage-row--fav">
+            <span class="spage-row-slot">${fav.slot}</span>
+            <span class="spage-row-label">${escapeHtml(fav.name || fav.title || fav.slot)}</span>
+            <button class="icon-button spage-row-del" data-delete-favorite="${fav.id}" aria-label="삭제">${trashIcon}</button>
           </div>
-          <p class="section-note">★ 탭으로 저장하면 홈에서 빠르게 기록해요</p>
-          ${state.favorites.length ? `
-            <div class="favorite-list">
-              ${state.favorites.map((fav) => `
-                <div class="favorite-item">
-                  <div class="favorite-item-info">
-                    <span class="favorite-slot">${fav.slot}</span>
-                    <span class="favorite-name">${escapeHtml(fav.name || fav.title || fav.slot)}</span>
-                  </div>
-                  <button class="icon-button" type="button" data-delete-favorite="${fav.id}" aria-label="삭제">${closeIcon()}</button>
-                </div>
-              `).join("")}
-            </div>
-          ` : `<p class="favorites-empty-note">아직 없어요. 기록 화면에서 ★를 눌러보세요</p>`}
-        </div>
-
-        <div class="setting-card">
-          <div class="setting-card-head">
-            <h3>동기화</h3>
-          </div>
-          ${currentUser ? `
-            <p class="section-note auth-email">${escapeHtml(currentUser.displayName || currentUser.email)}</p>
-            <button class="auth-btn auth-btn--out" data-sign-out>로그아웃</button>
-          ` : `
-            <p class="section-note">로그인하면 기기 간 기록이 동기화돼요</p>
-            <button class="auth-btn" data-sign-in-google>
-              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-              Google로 로그인
-            </button>
-          `}
-        </div>
-
+        `).join("") : `
+          <div class="spage-row spage-row--empty">기록 화면에서 ★를 눌러 저장해요</div>
+        `}
       </div>
-    </div>
-  `;
-}
 
-function renderSettingsSheet() {
-  return `
-    <div class="settings-overlay" data-settings-overlay>
-      <div class="settings-sheet">
-        <div class="settings-sheet-head">
-          <h2>설정</h2>
-          <button class="icon-button" data-close-settings aria-label="닫기">${closeIcon()}</button>
-        </div>
-        <div class="settings-sheet-body">
-          ${renderSettings()}
-        </div>
+      <p class="spage-label">계정</p>
+      <div class="spage-group">
+        ${currentUser ? `
+          <div class="spage-row">
+            <span class="spage-row-label">${escapeHtml(currentUser.displayName || currentUser.email)}</span>
+            <button class="spage-text-btn" data-sign-out>로그아웃</button>
+          </div>
+        ` : `
+          <button class="spage-row spage-row--btn" data-sign-in-google>
+            ${googleSvg}
+            <span class="spage-row-label">Google로 로그인</span>
+          </button>
+        `}
       </div>
+
     </div>
   `;
 }
@@ -1533,15 +1509,6 @@ function bindEvents() {
     });
   });
 
-  const settingsOverlay = document.querySelector("[data-settings-overlay]");
-  if (settingsOverlay) {
-    settingsOverlay.addEventListener("click", (e) => {
-      if (e.target === settingsOverlay) {
-        settingsOpen = false;
-        render();
-      }
-    });
-  }
 
   document.querySelectorAll("[data-toggle-date-picker]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2008,14 +1975,9 @@ function savePhotoToDevice(dataUrl) {
 }
 
 function renderPreservingSettingsScroll() {
-  const sheet = document.querySelector(".settings-sheet");
-  const scrollTop = sheet?.scrollTop || 0;
+  const scrollY = window.scrollY;
   render();
-  const nextSheet = document.querySelector(".settings-sheet");
-  if (nextSheet) {
-    nextSheet.style.animation = "none";
-    nextSheet.scrollTop = scrollTop;
-  }
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
 }
 
 function renderPreservingSheetScroll() {
