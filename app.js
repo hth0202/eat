@@ -2163,8 +2163,10 @@ async function init() {
   await migratePhotosToIndexedDB();
   await loadPhotoCache();
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistrations?.().then((registrations) => {
-      registrations.forEach((registration) => registration.unregister());
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hadController) window.location.reload();
     });
   }
   render();
