@@ -1269,22 +1269,21 @@ function renderSettingsPage() {
         <button class="spage-edit-btn" data-tag-edit-toggle>${tagEditMode ? "완료" : "편집"}</button>
       </div>
       ${tagEditMode ? `
-        <p class="spage-sublabel">최대 ${trackedTagLimit}개까지 홈에 크게 표시돼요</p>
-        <div class="spage-group">
-          ${categories.map((cat) => {
-            const tags = defaultTags.filter((t) => state.selectedTags.includes(t.id) && t.category === cat);
-            if (!tags.length) return "";
-            return `
-              <div class="spage-cat-label">${cat}</div>
+        <p class="spage-sublabel">최대 ${trackedTagLimit}개, 탭해서 선택·해제해요</p>
+        ${categories.map((cat) => {
+          const tags = defaultTags.filter((t) => state.selectedTags.includes(t.id) && t.category === cat);
+          if (!tags.length) return "";
+          return `
+            <p class="spage-chip-cat">${cat}</p>
+            <div class="spage-chip-grid">
               ${tags.map((tag) => `
-                <button class="spage-row ${state.trackedTags.includes(tag.id) ? "spage-row--on" : ""}" data-toggle-tracked="${tag.id}">
-                  <span class="spage-row-label">${tag.label}</span>
-                  <span class="spage-row-check">${state.trackedTags.includes(tag.id) ? `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 6L9 17l-5-5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor"/></svg>` : ""}</span>
+                <button class="chip ${tag.group} ${state.trackedTags.includes(tag.id) ? "active" : ""}" data-toggle-tracked="${tag.id}">
+                  ${tag.label}
                 </button>
               `).join("")}
-            `;
-          }).join("")}
-        </div>
+            </div>
+          `;
+        }).join("")}
       ` : `
         <div class="spage-tracked-chips">
           ${state.trackedTags.length ? state.trackedTags.map((id) => {
@@ -2166,7 +2165,11 @@ async function init() {
   await loadPhotoCache();
   if ("serviceWorker" in navigator) {
     const hadController = !!navigator.serviceWorker.controller;
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js").then((reg) => {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update();
+      });
+    }).catch(() => {});
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (hadController) window.location.reload();
     });

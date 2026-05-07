@@ -1906,6 +1906,21 @@ p {
   padding: 4px 8px;
 }
 
+.spage-chip-cat {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--soft);
+  margin: var(--space-4) 0 var(--space-2) var(--space-1);
+  letter-spacing: 0.04em;
+}
+
+.spage-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
 .spage-tracked-chips {
   display: flex;
   flex-wrap: wrap;
