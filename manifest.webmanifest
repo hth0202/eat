@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "끼니록",
   "short_name": "끼니록",
   "description": "한 끼씩 남기고, 내 식습관 패턴을 살펴보는 기록 앱",
@@ -11,7 +12,13 @@
       "src": "./assets/kkinilog-rabbit-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/kkinilog-rabbit-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
