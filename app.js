@@ -2155,6 +2155,25 @@ function draftFromFavorite(fav) {
   };
 }
 
+function mergeStates(cloudState, localState) {
+  const mealMap = new Map();
+  for (const m of [...cloudState.meals, ...localState.meals]) {
+    const existing = mealMap.get(m.id);
+    if (!existing || (m.createdAt || 0) > (existing.createdAt || 0)) {
+      mealMap.set(m.id, m);
+    }
+  }
+  const favMap = new Map();
+  for (const f of [...cloudState.favorites, ...localState.favorites]) {
+    if (!favMap.has(f.id)) favMap.set(f.id, f);
+  }
+  return normalizeState({
+    ...cloudState,
+    meals: [...mealMap.values()],
+    favorites: [...favMap.values()]
+  });
+}
+
 async function init() {
   try {
     await photoDB.open();
@@ -2176,19 +2195,19 @@ async function init() {
     if (user) {
       try {
         const doc = await db.collection("users").doc(user.uid).get();
+        const localState = loadState();
         if (doc.exists && doc.data().state) {
-          state = normalizeState(JSON.parse(doc.data().state));
-          localStorage.setItem(storageKey, JSON.stringify(state));
-          await loadPhotoCache();
+          const cloudState = normalizeState(JSON.parse(doc.data().state));
+          state = mergeStates(cloudState, localState);
         } else {
-          const stateJson = localStorage.getItem(storageKey);
-          if (stateJson) {
-            await db.collection("users").doc(user.uid).set({
-              state: stateJson,
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          }
+          state = localState;
         }
+        localStorage.setItem(storageKey, JSON.stringify(state));
+        await db.collection("users").doc(user.uid).set({
+          state: JSON.stringify(state),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await loadPhotoCache();
       } catch (err) {
         console.error("Cloud load failed:", err);
       }
