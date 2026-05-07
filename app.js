@@ -31,6 +31,37 @@ const maxPhotoEdge = 1280;
 const photoQuality = 0.82;
 const repeatableMealSlots = ["간식", "음료"];
 
+firebase.initializeApp({
+  apiKey: "AIzaSyBY_c_z6l6uY8GY_ehbRDF9LJ4hXMIoH6s",
+  authDomain: "kkinilog.firebaseapp.com",
+  projectId: "kkinilog",
+  storageBucket: "kkinilog.firebasestorage.app",
+  messagingSenderId: "945942920504",
+  appId: "1:945942920504:web:7f2ea690d1e95038ed15cd"
+});
+const auth = firebase.auth();
+const db = firebase.firestore();
+let currentUser = null;
+let cloudSaveTimer = null;
+
+function cloudSave() {
+  if (!currentUser) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(async () => {
+    try {
+      const stateJson = localStorage.getItem(storageKey);
+      if (stateJson) {
+        await db.collection("users").doc(currentUser.uid).set({
+          state: stateJson,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    } catch (err) {
+      console.error("Cloud save failed:", err);
+    }
+  }, 1500);
+}
+
 const photoDB = (() => {
   let db = null;
   const open = () => new Promise((resolve) => {
@@ -188,6 +219,7 @@ function normalizeTags(tags) {
 function saveState() {
   try {
     localStorage.setItem(storageKey, JSON.stringify(state));
+    cloudSave();
     return true;
   } catch (error) {
     console.error(error);
@@ -1268,6 +1300,22 @@ function renderSettings() {
           ` : `<p class="favorites-empty-note">아직 없어요. 기록 화면에서 ★를 눌러보세요</p>`}
         </div>
 
+        <div class="setting-card">
+          <div class="setting-card-head">
+            <h3>동기화</h3>
+          </div>
+          ${currentUser ? `
+            <p class="section-note auth-email">${escapeHtml(currentUser.displayName || currentUser.email)}</p>
+            <button class="auth-btn auth-btn--out" data-sign-out>로그아웃</button>
+          ` : `
+            <p class="section-note">로그인하면 기기 간 기록이 동기화돼요</p>
+            <button class="auth-btn" data-sign-in-google>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Google로 로그인
+            </button>
+          `}
+        </div>
+
       </div>
     </div>
   `;
@@ -1876,6 +1924,19 @@ function bindEvents() {
       render();
     });
   });
+
+  document.querySelector("[data-sign-in-google]")?.addEventListener("click", async () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+      await auth.signInWithPopup(provider);
+    } catch (err) {
+      console.error("로그인 실패:", err);
+    }
+  });
+
+  document.querySelector("[data-sign-out]")?.addEventListener("click", async () => {
+    await auth.signOut();
+  });
 }
 
 function syncEditorFromForm() {
@@ -2101,6 +2162,31 @@ async function init() {
     });
   }
   render();
+
+  auth.onAuthStateChanged(async (user) => {
+    currentUser = user;
+    if (user) {
+      try {
+        const doc = await db.collection("users").doc(user.uid).get();
+        if (doc.exists && doc.data().state) {
+          state = normalizeState(JSON.parse(doc.data().state));
+          localStorage.setItem(storageKey, JSON.stringify(state));
+          await loadPhotoCache();
+        } else {
+          const stateJson = localStorage.getItem(storageKey);
+          if (stateJson) {
+            await db.collection("users").doc(user.uid).set({
+              state: stateJson,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Cloud load failed:", err);
+      }
+    }
+    render();
+  });
 }
 
 init();
