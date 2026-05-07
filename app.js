@@ -1,23 +1,22 @@
 const mealSlots = ["아침", "점심", "저녁", "간식", "음료"];
 
 const defaultTags = [
-  { id: "flour", label: "밀가루", group: "watch", category: "조절할 것", hideInSlots: ["음료"] },
-  { id: "sweet", label: "당(설탕)", group: "watch", category: "조절할 것", hideInSlots: ["음료"] },
-  { id: "sweet-drink", label: "액상과당", group: "watch", category: "조절할 것", onlySlots: ["음료"] },
-  { id: "caffeine", label: "카페인", group: "watch", category: "조절할 것", onlySlots: ["음료"] },
-  { id: "fried", label: "기름짐", group: "watch", category: "조절할 것", hideInSlots: ["음료"] },
-  { id: "spicy", label: "매움", group: "watch", category: "조절할 것", hideInSlots: ["음료"] },
-  { id: "sodium", label: "나트륨(염분)", group: "watch", category: "조절할 것", hideInSlots: ["음료"] },
+  { id: "flour", label: "밀가루", group: "watch", category: "줄이기", hideInSlots: ["음료"] },
+  { id: "sweet", label: "당(설탕)", group: "watch", category: "줄이기" },
+  { id: "caffeine", label: "카페인", group: "watch", category: "줄이기", onlySlots: ["음료"] },
+  { id: "fried", label: "기름짐", group: "watch", category: "줄이기", hideInSlots: ["음료"] },
+  { id: "spicy", label: "매움", group: "watch", category: "줄이기", hideInSlots: ["음료"] },
+  { id: "sodium", label: "나트륨(염분)", group: "watch", category: "줄이기", hideInSlots: ["음료"] },
   { id: "late", label: "야식", group: "watch", category: "식사 상황", onlySlots: ["저녁", "간식"] },
   { id: "delivery", label: "배달/외식", group: "watch", category: "식사 상황", hideInSlots: ["음료"], exclusiveGroup: "source" },
-  { id: "veg", label: "채소", group: "care", category: "챙긴 것", hideInSlots: ["음료"] },
-  { id: "protein", label: "단백질", group: "care", category: "챙긴 것", hideInSlots: ["음료"] },
-  { id: "water", label: "물", group: "care", category: "챙긴 것", onlySlots: ["음료"] },
-  { id: "home", label: "집밥", group: "care", category: "챙긴 것", hideInSlots: ["음료"], exclusiveGroup: "source" },
-  { id: "fruit", label: "과일", group: "care", category: "챙긴 것", hideInSlots: ["음료"] },
-  { id: "comfortable", label: "속 편함", group: "care", category: "먹고 난 느낌", exclusiveGroup: "stomach" },
-  { id: "sleepy", label: "졸림", group: "watch", category: "먹고 난 느낌" },
-  { id: "bloat", label: "더부룩함", group: "watch", category: "먹고 난 느낌", exclusiveGroup: "stomach" }
+  { id: "veg", label: "채소", group: "care", category: "챙기기", hideInSlots: ["음료"] },
+  { id: "protein", label: "단백질", group: "care", category: "챙기기", hideInSlots: ["음료"] },
+  { id: "water", label: "물", group: "care", category: "챙기기", onlySlots: ["음료"] },
+  { id: "home", label: "집밥", group: "care", category: "식사 상황", hideInSlots: ["음료"], exclusiveGroup: "source" },
+  { id: "fruit", label: "과일", group: "care", category: "챙기기", hideInSlots: ["음료"] },
+  { id: "comfortable", label: "속 편함", group: "care", category: "먹고 나서", exclusiveGroup: "stomach" },
+  { id: "sleepy", label: "졸림", group: "watch", category: "먹고 나서" },
+  { id: "bloat", label: "더부룩함", group: "watch", category: "먹고 나서", exclusiveGroup: "stomach" }
 ];
 
 const appParams = new URLSearchParams(window.location.search);
@@ -25,11 +24,46 @@ const appVersion = appParams.get("v") || "dev";
 const storageKey = `kkinilog-state-v1-${appVersion}`;
 const defaultTrackedTags = ["flour", "sweet", "veg"];
 const trackedTagLimit = 5;
+const favoritesLimit = 8;
 const mealTitleLimit = 30;
 const mealMemoLimit = 100;
 const maxPhotoEdge = 1280;
 const photoQuality = 0.82;
 const repeatableMealSlots = ["간식", "음료"];
+
+const photoDB = (() => {
+  let db = null;
+  const open = () => new Promise((resolve) => {
+    const req = indexedDB.open("kkinilog-photos", 1);
+    req.onupgradeneeded = (e) => e.target.result.createObjectStore("photos");
+    req.onsuccess = (e) => { db = e.target.result; resolve(); };
+    req.onerror = () => resolve();
+  });
+  const put = (id, dataUrl) => new Promise((resolve) => {
+    if (!db) { resolve(); return; }
+    const tx = db.transaction("photos", "readwrite");
+    tx.objectStore("photos").put(dataUrl, id);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  });
+  const get = (id) => new Promise((resolve) => {
+    if (!db) { resolve(null); return; }
+    const tx = db.transaction("photos", "readonly");
+    const req = tx.objectStore("photos").get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+  const del = (id) => new Promise((resolve) => {
+    if (!db) { resolve(); return; }
+    const tx = db.transaction("photos", "readwrite");
+    tx.objectStore("photos").delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  });
+  return { open, put, get, del };
+})();
+
+const photoCache = new Map();
 const mealSlotOrder = { 아침: 0, 점심: 1, 저녁: 2, 간식: 3, 음료: 4 };
 const fullnessOptions = [
   "배고픔만 겨우 채움",
@@ -73,7 +107,7 @@ function isToday(dateKey) {
   return dateKey === todayKey();
 }
 
-let state = loadState();
+let state = null;
 let activeTab = "today";
 let viewedDate = todayKey();
 let datePickerOpen = false;
@@ -81,6 +115,7 @@ let pickerMonth = todayKey().slice(0, 7);
 let editor = null;
 let mealDetailId = null;
 let detailDraft = null;
+let settingsOpen = false;
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
@@ -101,7 +136,7 @@ function loadState() {
 
 function normalizeState(raw) {
   const validIds = defaultTags.map((tag) => tag.id);
-  const removedIds = ["slow", "overeat"];
+  const removedIds = ["slow", "overeat", "sweet-drink"];
   const shouldRefreshTagDefaults = raw.settingsVersion !== 4;
   const selectedTags = shouldRefreshTagDefaults
     ? validIds
@@ -127,6 +162,21 @@ function normalizeState(raw) {
       : [],
     selectedTags: selectedTags.length ? selectedTags : validIds,
     trackedTags: (trackedTags.length ? trackedTags : defaultTrackedTags).slice(0, trackedTagLimit),
+    favorites: Array.isArray(raw.favorites)
+      ? raw.favorites.map((f) => ({
+          id: typeof f.id === "string" ? f.id : crypto.randomUUID(),
+          fromMealId: typeof f.fromMealId === "string" ? f.fromMealId : null,
+          name: String(f.name || f.title || "").slice(0, 30).trim(),
+          slot: mealSlots.includes(f.slot) ? f.slot : "점심",
+          title: trimMealTitle(f.title || ""),
+          tags: normalizeTags((Array.isArray(f.tags) ? f.tags : []).filter((id) => validIds.includes(id) && !removedIds.includes(id))),
+          fullness: fullnessOptions.includes(f.fullness) ? f.fullness : "적당함",
+          carbs: carbOptions.includes(f.carbs) ? f.carbs : "보통",
+          speed: speedOptions.includes(f.speed) ? f.speed : "모르겠음",
+          memo: trimMealMemo(f.memo || ""),
+          lastUsedAt: Number.isFinite(Number(f.lastUsedAt)) ? Number(f.lastUsedAt) : Date.now()
+        }))
+      : [],
     settingsVersion: 4
   };
 }
@@ -304,8 +354,8 @@ function appIcon() {
 function gearIcon() {
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
-      <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2.1 2.1 0 0 1-2.97 2.97l-.04-.04a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.65V21.3a2.1 2.1 0 0 1-4.2 0v-.06a1.8 1.8 0 0 0-1.1-1.65 1.8 1.8 0 0 0-1.98.36l-.04.04a2.1 2.1 0 0 1-2.97-2.97l.04-.04A1.8 1.8 0 0 0 3.6 15a1.8 1.8 0 0 0-1.65-1.1H1.9a2.1 2.1 0 0 1 0-4.2h.06A1.8 1.8 0 0 0 3.6 8.6a1.8 1.8 0 0 0-.36-1.98l-.04-.04A2.1 2.1 0 0 1 6.17 3.6l.04.04a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.1-1.65V2.3a2.1 2.1 0 0 1 4.2 0v.06a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 1.98-.36l.04-.04a2.1 2.1 0 0 1 2.97 2.97l-.04.04a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.1h.06a2.1 2.1 0 0 1 0 4.2h-.06A1.8 1.8 0 0 0 19.4 15Z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   `;
 }
@@ -341,6 +391,23 @@ function plusIcon() {
   `;
 }
 
+function closeIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18 6 6 18" />
+      <path d="M6 6l12 12" />
+    </svg>
+  `;
+}
+
+function checkIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  `;
+}
+
 function editIcon() {
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -350,25 +417,73 @@ function editIcon() {
   `;
 }
 
+function starIcon(filled = false) {
+  return filled
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="none" fill="currentColor"/></svg>`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+}
+
+function cameraIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
+      <circle cx="12" cy="13" r="3" />
+    </svg>
+  `;
+}
+
+function galleryIcon() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="m21 15-5-5L5 21" />
+    </svg>
+  `;
+}
+
+function showToast(message) {
+  const existing = document.querySelector(".toast");
+  if (existing) existing.remove();
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = message;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("toast--visible"));
+  setTimeout(() => {
+    el.classList.remove("toast--visible");
+    el.addEventListener("transitionend", () => el.remove(), { once: true });
+  }, 3000);
+}
+
+function getSettingsRoot() {
+  let el = document.getElementById("settings-root");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "settings-root";
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
 function render() {
+  if (!state) return;
   const root = document.querySelector("#app");
   root.innerHTML = `
     <main class="shell">
       <header class="topbar">
-        <div class="brand">
-          <div class="mark">${appIcon()}</div>
-          <h1>끼니록</h1>
-        </div>
-        <button class="header-icon ${activeTab === "settings" ? "active" : ""}" data-tab="settings" aria-label="설정">${gearIcon()}</button>
+        <h1 class="wordmark">끼니록</h1>
+        <button class="setting-btn ${settingsOpen ? "active" : ""}" data-toggle-settings aria-label="설정">${gearIcon()}</button>
       </header>
       ${activeTab === "today" ? renderToday() : ""}
       ${activeTab === "flow" ? renderFlow() : ""}
-      ${activeTab === "settings" ? renderSettings() : ""}
     </main>
     ${renderTabs()}
     ${editor ? renderEditor() : ""}
     ${mealDetailId ? renderMealDetail() : ""}
   `;
+
+  getSettingsRoot().innerHTML = settingsOpen ? renderSettingsSheet() : "";
 
   bindEvents();
 }
@@ -398,8 +513,10 @@ function renderToday() {
 
     <section class="section">
       <div class="insight notice">
-        <span class="notice-badge">${dayCopy}의 살핌</span>
-        <h3>${dayCopy} 기록을 살펴봤어요</h3>
+        <div class="notice-top">
+          <span class="notice-badge">${meals.length ? `${meals.length}끼 기록` : "아직 기록 없음"}</span>
+        </div>
+        <h3>${todayInsightTitle(meals, dayCopy)}</h3>
         <p>${todayInsight(meals, counts, dayCopy)}</p>
       </div>
     </section>
@@ -408,12 +525,13 @@ function renderToday() {
       <div class="section-head">
         <div>
           <h2 class="section-title">기록한 끼니</h2>
-          <p class="section-note">${meals.length ? `${meals.length}개를 남겼어요.` : "아직 남긴 끼니가 없어요."}</p>
+          <p class="section-note">${meals.length ? `${meals.length}끼 기록했어요` : "아직 없어요"}</p>
         </div>
       </div>
       ${meals.length ? `<div class="meal-list">${meals.map(renderMealCard).join("")}</div>${renderAddMealCta()}` : renderEmptyTodayCta()}
     </section>
 
+    ${trackedTodayTags.length ? `
     <section class="section">
       <div class="section-head">
         <h2 class="section-title">${dayCopy}의 기록</h2>
@@ -430,21 +548,16 @@ function renderToday() {
           )
           .join("")}
       </div>
-    </section>
+    </section>` : ""}
 
   `;
 }
 
 function renderEmptyTodayCta() {
   return `
-    <button class="empty-cta" data-open-editor>
-      <span class="empty-cta-icon mascot-thumb" aria-hidden="true">
-        <img src="./assets/kkinilog-rabbit-mascot.png" alt="" />
-      </span>
-      <span>
-        <strong>첫 끼니 기록하기</strong>
-        <small>먹은 것만 가볍게 남겨도 충분해요.</small>
-      </span>
+    <button class="empty-today-cta" data-open-editor>
+      <strong>오늘 첫 끼니를 기록해봐요</strong>
+      <small>뭐 드셨어요? 간단하게 적어도 충분해요</small>
     </button>
   `;
 }
@@ -454,12 +567,27 @@ function renderAddMealCta() {
   const dayCopy = isToday(viewedDate) ? "오늘" : "이날";
   return `
     <button class="empty-cta empty-cta-compact" ${canAddMeal ? "data-open-editor" : "disabled"}>
-      <span class="empty-cta-icon">${canAddMeal ? "+" : "✓"}</span>
+      <span class="empty-cta-icon">${canAddMeal ? plusIcon() : checkIcon()}</span>
       <span>
-        <strong>${canAddMeal ? "끼니 추가하기" : `${dayCopy} 끼니는 모두 기록했어요`}</strong>
-        <small>${canAddMeal ? "먹은 끼니를 이어서 남겨보세요." : "작성한 끼니는 다시 선택할 수 없어요."}</small>
+        <strong>${canAddMeal ? "이어서 기록하기" : `${dayCopy} 끼니는 다 기록했어요`}</strong>
+        <small>${canAddMeal ? "다음 끼니를 이어서 기록해요" : "카드를 누르면 수정할 수 있어요"}</small>
       </span>
     </button>
+  `;
+}
+
+function renderFavoriteChips() {
+  return `
+    <section class="favorites-section">
+      <div class="favorites-scroll">
+        ${state.favorites.map((fav) => `
+          <button class="fav-chip" data-open-favorite="${fav.id}" aria-label="${escapeHtml(fav.name || fav.slot)} 기록하기">
+            <span class="fav-chip-slot">${fav.slot}</span>
+            <span class="fav-chip-name">${escapeHtml(fav.name || fav.title || fav.slot)}</span>
+          </button>
+        `).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -533,7 +661,7 @@ function renderMealCard(meal) {
 
 function formatMealCardTitle(title) {
   const items = mealTitleItems(title);
-  if (!items.length) return "이름 없이 남긴 끼니";
+  if (!items.length) return "제목 없음";
   const extraCount = items.length - 1;
   const extraCopy = extraCount ? ` <span class="meal-card-extra">외 ${extraCount}가지</span>` : "";
   return `${escapeHtml(truncateText(items[0], 10))}${extraCopy}`;
@@ -567,23 +695,24 @@ function renderMealDetail() {
   const detailCategories = [...new Set(detailTags.map((tag) => tag.category))];
   const detailMemoCount = characterCount(detailDraft.memo);
 
+  const isFavorited = state.favorites.some((f) => f.fromMealId === detailDraft.id);
+
   return `
     <div class="modal detail-modal" role="dialog" aria-modal="true" aria-label="${meal.slot} 상세 보기">
       <form class="sheet detail-sheet" data-detail-form>
         <div class="sheet-head">
           <div>
             <h2 class="sheet-title">${detailDraft.slot} 기록</h2>
-            <p class="section-note">내용을 바로 고치고 저장할 수 있어요.</p>
+            <p class="section-note">내용을 바로 수정할 수 있어요</p>
           </div>
-          <button class="icon-button" type="button" data-close-detail>×</button>
+          <div class="sheet-head-actions">
+            <button class="icon-button star-btn ${isFavorited ? "favorited" : ""}" type="button" data-toggle-favorite="${detailDraft.id}" aria-label="${isFavorited ? "즐겨찾기 해제" : "즐겨찾기 추가"}">${starIcon(isFavorited)}</button>
+            <button class="icon-button" type="button" data-close-detail>${closeIcon()}</button>
+          </div>
         </div>
 
         <div class="sheet-body detail-body">
-          <label class="photo-hero" aria-label="사진 추가 또는 변경">
-            ${renderPhotoPreview(detailDraft.photo)}
-            <span class="photo-edit-icon">${editIcon()}</span>
-            <input type="file" accept="image/*" data-detail-photo-input>
-          </label>
+          ${renderPhotoHero(detailDraft.photo, "detail")}
 
           <div class="detail-card">
             <label class="detail-label">끼니</label>
@@ -659,7 +788,7 @@ function renderMealDetail() {
 
           <div class="detail-card">
             <label class="detail-label" for="detail-memo">메모</label>
-            <textarea class="textarea" id="detail-memo" name="memo" maxlength="${mealMemoLimit}" data-memo-input placeholder="먹고 나서 어땠는지 남겨요.">${escapeHtml(detailDraft.memo)}</textarea>
+            <textarea class="textarea" id="detail-memo" name="memo" maxlength="${mealMemoLimit}" data-memo-input placeholder="먹고 나서 어땠는지 남겨요">${escapeHtml(detailDraft.memo)}</textarea>
             <p class="field-counter"><span data-memo-count>${detailMemoCount}</span>/${mealMemoLimit}</p>
           </div>
         </div>
@@ -674,11 +803,78 @@ function renderMealDetail() {
   `;
 }
 
-function todayInsight(meals, counts, dayCopy = "오늘") {
-  if (!meals.length) {
-    return "완벽하게 적지 않아도 괜찮아요. 하루 한 끼만 남겨 보세요.";
+function getStreakDays() {
+  const mealDates = new Set(state.meals.map((m) => m.date));
+  let streak = 0;
+  let date = todayKey();
+  while (mealDates.has(date)) {
+    streak++;
+    date = addDays(date, -1);
+  }
+  return streak;
+}
+
+function getWeekHighlights(weekMeals, weekCounts, streak) {
+  const highlights = [];
+
+  if (streak >= 7) {
+    highlights.push({ type: "great", text: `${streak}일 연속 기록 중이에요` });
+  } else if (streak >= 3) {
+    highlights.push({ type: "good", text: `${streak}일 연속으로 기록하고 있어요` });
   }
 
+  const vegCount = weekCounts.veg || 0;
+  if (vegCount >= 4) {
+    highlights.push({ type: "good", text: `채소를 이번 주 ${vegCount}번 챙겼어요` });
+  }
+
+  const homeCount = weekCounts.home || 0;
+  if (homeCount >= 4) {
+    highlights.push({ type: "good", text: `집밥을 이번 주 ${homeCount}번 먹었어요` });
+  }
+
+  const deliveryCount = weekCounts.delivery || 0;
+  if (deliveryCount >= 4) {
+    highlights.push({ type: "watch", text: `배달을 이번 주 ${deliveryCount}번 했어요` });
+  }
+
+  const fastCount = weekMeals.filter((m) => m.speed === "10분 이내").length;
+  if (fastCount >= 4) {
+    highlights.push({ type: "watch", text: `빠르게 먹은 끼니가 ${fastCount}번이에요` });
+  }
+
+  const balancedCount = weekMeals.filter((m) => m.fullness === "적당함").length;
+  if (balancedCount >= 4) {
+    highlights.push({ type: "good", text: `적당한 포만감으로 먹은 끼니가 ${balancedCount}번이에요` });
+  }
+
+  const lateCount = weekCounts.late || 0;
+  if (lateCount >= 3) {
+    highlights.push({ type: "watch", text: `야식이 이번 주 ${lateCount}번이에요` });
+  }
+
+  if (!highlights.length && weekMeals.length >= 7) {
+    highlights.push({ type: "good", text: `이번 주 ${weekMeals.length}끼 모두 기록했어요` });
+  }
+
+  return highlights.slice(0, 3);
+}
+
+function todayInsightTitle(meals, dayCopy = "오늘") {
+  if (!meals.length) return "기록을 시작해봐요";
+  return `${meals.length}끼 기록했어요`;
+}
+
+function todayInsight(meals, counts, dayCopy = "오늘") {
+  if (!meals.length) {
+    const streak = getStreakDays();
+    if (streak >= 2) return `어제까지 ${streak - 1}일 연속이었어요, 오늘도 한 끼 남겨봐요`;
+    const recentDays = recentMeals(7);
+    if (recentDays.length >= 5) return "이번 주 꾸준히 기록했어요, 오늘 첫 끼니를 남겨봐요";
+    return "한 끼만 남겨봐요, 완벽하지 않아도 돼요";
+  }
+
+  const streak = getStreakDays();
   const highCarbCount = meals.filter((meal) => meal.carbs === "많이").length;
   const highFullnessCount = meals.filter((meal) => ["적당에서 약간 배부름", "배 터질 것 같음"].includes(meal.fullness)).length;
   const fastMealCount = meals.filter((meal) => meal.speed === "10분 이내").length;
@@ -687,61 +883,97 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
   const balancedFullnessCount = meals.filter((meal) => meal.fullness === "적당함").length;
   const lowFullnessCount = meals.filter((meal) => meal.fullness === "배고픔만 겨우 채움").length;
   const bingeFullnessCount = meals.filter((meal) => meal.fullness === "배 터질 것 같음").length;
-  const sweetCount = (counts.sweet || 0) + (counts["sweet-drink"] || 0);
+  const sweetCount = counts.sweet || 0;
+  const vegCount = counts.veg || 0;
+  const proteinCount = counts.protein || 0;
+  const bloatCount = counts.bloat || 0;
+  const sleepyCount = counts.sleepy || 0;
+
+  if (streak >= 7 && meals.length > 0) {
+    return `${streak}일 연속 기록 중이에요, 식습관 패턴이 보이기 시작할 거예요`;
+  }
+
+  if (streak >= 3 && meals.length > 0 && balancedFullnessCount >= 1 && bloatCount === 0) {
+    return `${streak}일째 기록하고 있어요, 오늘도 잘 챙긴 것 같아요`;
+  }
+
+  if (bloatCount > 0 && sleepyCount > 0) {
+    return "더부룩하고 졸리기도 했네요, 어떤 메뉴였는지 메모에 남겨봐요";
+  }
+
+  if (bloatCount > 0) {
+    return "더부룩함이 있었어요, 어떤 메뉴였는지 살펴봐요";
+  }
+
+  if (sleepyCount > 0 && highCarbCount >= 1) {
+    return "식후 졸림이 있었어요, 탄수화물 양이 영향을 줬을 수 있어요";
+  }
 
   if ((counts.delivery || 0) >= 2) {
-    return `${dayCopy}은 배달/외식을 자주 했어요. 다음 끼니는 집밥이나 간단한 조합으로 맞춰볼까요?`;
+    return "배달을 자주 했어요, 다음 끼니는 집밥 어때요?";
   }
 
   if ((counts.sodium || 0) >= 2) {
-    return `${dayCopy}은 조금 짜게 먹었어요. 물이나 담백한 메뉴로 균형을 맞춰봐도 좋아요.`;
-  }
-
-  if ((counts.bloat || 0) > 0) {
-    return "먹고 난 뒤 더부룩함이 남아 있어요. 어떤 메뉴에서 그랬는지 메모해두면 다음 선택에 도움이 돼요.";
+    return "짠 게 좀 많았네요, 물을 조금 더 마셔봐요";
   }
 
   if (highCarbCount >= 2) {
-    return `${dayCopy}은 탄수화물 섭취가 조금 많았어요. 다음 끼니에서는 채소나 단백질을 곁들여봐도 좋아요.`;
+    return "탄수화물이 좀 많았어요, 다음엔 채소나 단백질을 곁들여봐요";
   }
 
   if (bingeFullnessCount > 0) {
-    return "배가 많이 부를 만큼 먹은 끼니가 있었어요. 다음엔 배부르기 전에 한 번 멈춰봐도 좋아요.";
+    return "많이 먹은 끼니가 있었어요, 다음엔 한 박자 느리게요";
   }
 
   if (highFullnessCount >= 2) {
-    return `${dayCopy}은 포만감이 높은 끼니가 여러 번 있었어요. 다음엔 한 단계만 가볍게 맞춰볼까요?`;
+    return "포만감이 높은 끼니가 여러 번이에요, 다음엔 한 단계 가볍게요";
   }
 
   if (fastMealCount >= 2) {
-    return "10분 안에 먹은 끼니가 여러 번 있었어요. 다음 끼니는 몇 입만 천천히 먹어봐도 좋아요.";
+    return "빨리 먹은 끼니가 여러 번이에요, 다음엔 조금 천천히요";
   }
 
-  if (lowFullnessCount > 0) {
-    return "가볍게 지나간 끼니가 있어요. 채소, 단백질, 탄수화물이 골고루 있었는지 한 번만 살펴봐요.";
+  if (lowFullnessCount > 0 && vegCount === 0 && proteinCount === 0) {
+    return "식사량이 부족했을 수 있어요, 채소나 단백질을 더 챙겨봐요";
   }
 
-  if (sweetCount > 0) {
-    return `${dayCopy}은 당이나 액상과당이 조금 많았어요. 다음 끼니에서는 물이나 담백한 메뉴를 골라봐요.`;
+  if (sweetCount > 0 && (counts.home || 0) === 0) {
+    return "당이 조금 있었어요, 다음 끼니는 담백하게 골라봐요";
+  }
+
+  if (slowMealCount > 0 && balancedFullnessCount > 0) {
+    return "천천히, 적당히 먹었어요, 좋은 패턴이에요";
   }
 
   if (slowMealCount > 0) {
-    return "천천히 먹은 끼니가 있었어요. 여유 있게 먹는 습관은 오래 가져가도 좋아요.";
+    return "천천히 먹었어요, 좋은 습관이에요";
+  }
+
+  if (vegCount > 0 && proteinCount > 0) {
+    return "채소와 단백질을 모두 챙겼어요, 균형 잡힌 하루예요";
+  }
+
+  if (vegCount > 0 || proteinCount > 0) {
+    return "채소나 단백질을 챙겼어요, 잘 하고 있어요";
+  }
+
+  if (balancedFullnessCount >= 2) {
+    return "포만감을 잘 조절했어요, 오늘 기록이 좋네요";
   }
 
   if (balancedFullnessCount > 0) {
-    return `포만감이 적당했던 끼니가 있었어요. ${dayCopy} 기록, 괜찮은 패턴이에요.`;
+    return "적당한 포만감이었어요, 오늘 기록 좋아요";
   }
 
   if (lightFullnessCount > 0) {
-    return "산뜻하게 먹은 끼니가 있었어요. 가볍지만 든든했는지도 같이 살펴봐요.";
+    return "산뜻하게 먹었어요, 든든하기도 했는지 살펴봐요";
   }
 
-  if (counts.veg > 0 || counts.protein > 0) {
-    return "건강에 좋은 기록이 쌓였어요. 이런 작은 기록이 건강한 식습관을 만들어요.";
+  if (meals.length >= 3) {
+    return "세 끼를 모두 기록했어요, 오늘 하루 식습관이 쌓였어요";
   }
 
-  return `기록이 쌓이기 시작했어요. ${dayCopy} 몸 상태도 메모에 남겨두면 나중에 도움이 돼요.`;
+  return "기록이 쌓이고 있어요, 몸 상태도 메모에 남겨봐요";
 }
 
 function renderFlow() {
@@ -752,6 +984,8 @@ function renderFlow() {
   const weekHighCarbCount = weekMeals.filter((meal) => meal.carbs === "많이").length;
   const weekFastMealCount = weekMeals.filter((meal) => meal.speed === "10분 이내").length;
   const weekBalancedFullnessCount = weekMeals.filter((meal) => meal.fullness === "적당함").length;
+  const streak = getStreakDays();
+  const highlights = getWeekHighlights(weekMeals, weekCounts, streak);
   const sortedTags = state.trackedTags
     .map(tagById)
     .filter(Boolean)
@@ -765,7 +999,7 @@ function renderFlow() {
       <div class="section-head">
         <div>
           <h2 class="section-title">이번 주 요약</h2>
-          <p class="section-note">이번 주에 자주 보인 식습관을 모았어요.</p>
+          <p class="section-note">이번 주 식습관이에요</p>
         </div>
       </div>
       <div class="overview-grid">
@@ -794,7 +1028,7 @@ function renderFlow() {
 
     <section class="section">
       <div class="section-head">
-        <h2 class="section-title">자주 보인 것</h2>
+        <h2 class="section-title">자주 나온 태그</h2>
       </div>
       ${
         sortedTags.length
@@ -813,14 +1047,31 @@ function renderFlow() {
                 )
                 .join("")}
             </div>`
-          : `<div class="empty">아직 볼 기준이 없어요. 한 끼씩 기록하다 보면 이번 주 패턴이 여기 모여요.</div>`
+          : `<div class="empty">기록이 쌓이면 패턴이 보여요.</div>`
       }
     </section>
 
+    ${highlights.length ? `
     <section class="section">
-      <div class="insight">
-        <h3>이번 주 발견</h3>
-        <p>${flowInsight(weekMeals, monthMeals, weekCounts)}</p>
+      <div class="section-head">
+        <h2 class="section-title">이번 주 하이라이트</h2>
+      </div>
+      <div class="highlight-list">
+        ${highlights.map((h) => `
+          <div class="highlight-item highlight-${h.type}">
+            <span class="highlight-label">${h.text}</span>
+          </div>
+        `).join("")}
+      </div>
+    </section>` : ""}
+
+    <section class="section">
+      <div class="insight notice">
+        <div class="notice-top">
+          <span class="notice-badge">이번 주 패턴</span>
+        </div>
+        <h3>${weekMeals.length ? "이번 주 기록이에요" : "기록을 시작해봐요"}</h3>
+        <p>${flowInsight(weekMeals, monthMeals, weekCounts, streak)}</p>
       </div>
     </section>
 
@@ -828,7 +1079,7 @@ function renderFlow() {
       <div class="section-head">
         <div>
           <h2 class="section-title">지난 끼니록</h2>
-          <p class="section-note">날짜를 누르면 홈에서 볼 수 있어요.</p>
+          <p class="section-note">날짜를 누르면 홈에서 볼 수 있어요</p>
         </div>
       </div>
       ${
@@ -836,7 +1087,7 @@ function renderFlow() {
           ? `<div class="history-list">
               ${historyGroups.map(renderHistoryGroup).join("")}
             </div>`
-          : `<div class="empty">아직 다시 볼 기록이 없어요. 오늘 한 끼를 남기면 여기에 쌓여요.</div>`
+          : `<div class="empty">오늘 한 끼를 남기면 여기에 쌓여요.</div>`
       }
     </section>
   `;
@@ -878,46 +1129,99 @@ function formatHistoryDate(date) {
   }).format(new Date(`${date}T00:00:00`));
 }
 
-function flowInsight(weekMeals, monthMeals, counts) {
+function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
   if (!weekMeals.length) {
-    return "첫 기록을 남기면 이곳에서 이번 주 식습관을 같이 살펴볼게요.";
+    if (monthMeals.length > 0) return `지난달에 ${monthMeals.length}번 기록했어요, 이번 주도 시작해봐요`;
+    return "첫 끼니를 기록하면 이번 주 패턴을 같이 살펴볼게요";
   }
 
-  const top = Object.entries(counts)
+  const weekFastCount = weekMeals.filter((m) => m.speed === "10분 이내").length;
+  const weekDeliveryCount = counts.delivery || 0;
+  const weekVegCount = counts.veg || 0;
+  const weekProteinCount = counts.protein || 0;
+  const weekLateCount = counts.late || 0;
+  const weekSodiumCount = counts.sodium || 0;
+  const weekBloatCount = counts.bloat || 0;
+  const weekBalancedCount = weekMeals.filter((m) => m.fullness === "적당함").length;
+
+  if (streak >= 14) {
+    return `${streak}일 연속 기록이에요, 이 정도면 식습관 패턴이 꽤 보일 거예요`;
+  }
+
+  if (weekBloatCount >= 3) {
+    return `더부룩함이 이번 주 ${weekBloatCount}번이에요, 어떤 끼니 후에 나타나는지 살펴봐요`;
+  }
+
+  if (weekDeliveryCount >= 4) {
+    return `이번 주 배달이 ${weekDeliveryCount}번이에요, 집밥이나 간단한 요리로 한두 번 바꿔볼까요`;
+  }
+
+  if (weekSodiumCount >= 3) {
+    return `짠 음식이 이번 주 ${weekSodiumCount}번이에요, 나트륨이 쌓이면 부기로 나타날 수 있어요`;
+  }
+
+  if (weekFastCount >= 4) {
+    return `이번 주 ${weekFastCount}끼를 빠르게 먹었어요, 천천히 먹으면 포만감이 더 잘 느껴져요`;
+  }
+
+  if (weekLateCount >= 3) {
+    return `야식이 이번 주 ${weekLateCount}번이에요, 저녁 식사 시간을 조금 앞당겨 볼까요`;
+  }
+
+  if (weekVegCount >= 4 && weekProteinCount >= 3) {
+    return "채소와 단백질을 꾸준히 챙겼어요, 이번 주 균형이 좋아요";
+  }
+
+  if (weekVegCount >= 4) {
+    return `채소를 이번 주 ${weekVegCount}번 챙겼어요, 단백질도 같이 챙기면 더 좋아요`;
+  }
+
+  if (weekBalancedCount >= 5) {
+    return `포만감이 적당했던 끼니가 ${weekBalancedCount}번이에요, 식사 조절이 잘 되고 있어요`;
+  }
+
+  if (weekVegCount === 0 && weekMeals.length >= 5) {
+    return "이번 주 채소 기록이 없어요, 다음 주엔 한 끼라도 채소를 곁들여봐요";
+  }
+
+  const watchTags = Object.entries(counts)
     .map(([id, count]) => ({ tag: tagById(id), count }))
-    .filter((item) => item.tag)
+    .filter((item) => item.tag?.group === "watch" && item.count >= 2)
     .sort((a, b) => b.count - a.count)[0];
 
-  if (top) {
-    return `${top.tag.label}이 이번 주에 ${top.count}번 보였어요. 줄일지, 더 챙길지 가볍게 정해봐요.`;
+  if (watchTags) {
+    return `${watchTags.tag.label}이 이번 주에 ${watchTags.count}번 나왔어요, 다음 주엔 조금 줄여봐요`;
   }
 
-  return `최근 30일 동안 ${monthMeals.length}번의 기록이 쌓였어요. 작은 기록들이 쌓여 건강한 식습관을 만들어요.`;
+  if (monthMeals.length >= 20) {
+    return `최근 한 달 ${monthMeals.length}번 기록했어요, 패턴이 잘 보이고 있어요`;
+  }
+
+  return `이번 주 ${weekMeals.length}끼 기록했어요, 꾸준히 쌓아가고 있어요`;
 }
 
 function renderSettings() {
   const groups = [
-    { title: "조금 줄여볼 것", category: "조절할 것", note: "많이 보이면 다음 끼니에서 살짝 조절해요." },
-    { title: "더 챙길 것", category: "챙긴 것", note: "자주 보이면 좋은 신호예요." },
-    { title: "먹은 방식", category: "식사 상황", note: "배달, 외식, 야식처럼 식사 상황을 남겨요." },
-    { title: "먹고 난 상태", category: "먹고 난 느낌", note: "속이 편했는지, 졸렸는지도 같이 볼 수 있어요." }
+    { title: "줄이기", category: "줄이기", note: "자주 보이면 다음 끼니에서 조절해요" },
+    { title: "챙기기", category: "챙기기", note: "자주 나오면 좋은 신호예요" },
+    { title: "식사 상황", category: "식사 상황", note: "배달, 외식, 야식 등 식사 상황을 기록해요" },
+    { title: "먹고 나서", category: "먹고 나서", note: "식후 몸 상태를 기록해요" }
   ];
 
   return `
-    <section class="section">
-      <div class="section-head">
-        <div>
-          <h2 class="section-title">내 식습관 기준</h2>
-          <p class="section-note">자주 보고 싶은 것만 골라두세요.</p>
-        </div>
+    <div class="section-head">
+      <div>
+        <h2 class="section-title">태그 설정</h2>
+        <p class="section-note">표시할 항목을 골라두세요</p>
       </div>
-      <div class="settings-group">
+    </div>
+    <div class="settings-group">
         <div class="setting-card">
           <div class="setting-card-head">
-            <h3>홈에서 바로 볼 것</h3>
+            <h3>홈 화면 요약</h3>
             <span>${state.trackedTags.length}/${trackedTagLimit}</span>
           </div>
-          <p class="section-note">오늘 화면에 크게 보여줄 태그예요. 최대 ${trackedTagLimit}개까지 고를 수 있어요.</p>
+          <p class="section-note">홈 화면에 크게 표시돼요, 최대 ${trackedTagLimit}개</p>
           <div class="tracked-group-list">
             ${groups
               .map(
@@ -943,8 +1247,45 @@ function renderSettings() {
           </div>
         </div>
 
+        <div class="setting-card">
+          <div class="setting-card-head">
+            <h3>즐겨찾기</h3>
+            <span>${state.favorites.length}개</span>
+          </div>
+          <p class="section-note">★ 탭으로 저장하면 홈에서 빠르게 기록해요</p>
+          ${state.favorites.length ? `
+            <div class="favorite-list">
+              ${state.favorites.map((fav) => `
+                <div class="favorite-item">
+                  <div class="favorite-item-info">
+                    <span class="favorite-slot">${fav.slot}</span>
+                    <span class="favorite-name">${escapeHtml(fav.name || fav.title || fav.slot)}</span>
+                  </div>
+                  <button class="icon-button" type="button" data-delete-favorite="${fav.id}" aria-label="삭제">${closeIcon()}</button>
+                </div>
+              `).join("")}
+            </div>
+          ` : `<p class="favorites-empty-note">아직 없어요. 기록 화면에서 ★를 눌러보세요</p>`}
+        </div>
+
       </div>
-    </section>
+    </div>
+  `;
+}
+
+function renderSettingsSheet() {
+  return `
+    <div class="settings-overlay" data-settings-overlay>
+      <div class="settings-sheet">
+        <div class="settings-sheet-head">
+          <h2>설정</h2>
+          <button class="icon-button" data-close-settings aria-label="닫기">${closeIcon()}</button>
+        </div>
+        <div class="settings-sheet-body">
+          ${renderSettings()}
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -988,10 +1329,10 @@ function emptyDraft(slot = recommendedSlot()) {
 }
 
 function recommendedSlot() {
-  const hour = new Date().getHours();
-  if (hour < 11) return "아침";
-  if (hour < 16) return "점심";
-  if (hour < 21) return "저녁";
+  const taken = new Set(mealsForDate(viewedDate).map((m) => m.slot));
+  for (const slot of ["아침", "점심", "저녁"]) {
+    if (!taken.has(slot)) return slot;
+  }
   return "간식";
 }
 
@@ -1007,17 +1348,28 @@ function renderEditor() {
         <div class="sheet-head">
           <div>
             <h2 class="sheet-title">${editor.slot} 기록</h2>
-            <p class="section-note">생각나는 만큼만 남겨도 괜찮아요.</p>
+            <p class="section-note">생각나는 만큼만 적어 주세요</p>
           </div>
-          <button class="icon-button" type="button" data-close-editor>×</button>
+          <button class="icon-button" type="button" data-close-editor>${closeIcon()}</button>
         </div>
 
         <div class="sheet-body">
-        <label class="photo-hero" aria-label="사진 추가 또는 변경">
-          ${renderPhotoPreview(editor.photo)}
-          <span class="photo-edit-icon">${editIcon()}</span>
-          <input type="file" accept="image/*" data-photo-input>
-        </label>
+        ${state.favorites.length ? `
+        <div class="editor-favorites">
+          <p class="editor-favorites-label">즐겨찾기</p>
+          <div class="editor-favorites-scroll-wrap">
+            <div class="editor-favorites-scroll">
+              ${[...state.favorites].sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0)).map((fav) => `
+                <button type="button" class="fav-chip" data-load-favorite="${fav.id}">
+                  <span class="fav-chip-slot">${fav.slot}</span>
+                  <span class="fav-chip-name">${escapeHtml(fav.name || fav.title || fav.slot)}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>` : ""}
+
+        ${renderPhotoHero(editor.photo, "editor")}
 
         <div class="field">
           <label>끼니</label>
@@ -1034,7 +1386,7 @@ function renderEditor() {
         <div class="field">
           <label for="meal-title">먹은 것</label>
           <input class="input" id="meal-title" name="title" value="${escapeHtml(editor.title)}" maxlength="${mealTitleLimit}" placeholder="예: 김밥, 아이스라떼, 계란말이" />
-          <p class="field-help">여러 개면 쉼표로 이어 적어도 좋아요. 최대 ${mealTitleLimit}자까지 남길 수 있어요.</p>
+          <p class="field-help">여러 개면 쉼표로 이어 적어도 좋아요</p>
         </div>
 
         <div class="field check-field">
@@ -1094,7 +1446,7 @@ function renderEditor() {
 
         <div class="field">
           <label for="meal-memo">메모</label>
-          <textarea class="textarea" id="meal-memo" name="memo" maxlength="${mealMemoLimit}" data-memo-input placeholder="먹고 나서 어땠는지, 다음엔 바꾸고 싶은 점이 있다면 남겨요.">${escapeHtml(editor.memo)}</textarea>
+          <textarea class="textarea" id="meal-memo" name="memo" maxlength="${mealMemoLimit}" data-memo-input placeholder="먹고 난 느낌을 남겨요">${escapeHtml(editor.memo)}</textarea>
           <p class="field-counter"><span data-memo-count>${editorMemoCount}</span>/${mealMemoLimit}</p>
         </div>
         </div>
@@ -1114,9 +1466,34 @@ function bindEvents() {
     button.addEventListener("click", () => {
       activeTab = button.dataset.tab;
       datePickerOpen = false;
+      settingsOpen = false;
       render();
     });
   });
+
+  document.querySelectorAll("[data-toggle-settings]").forEach((button) => {
+    button.addEventListener("click", () => {
+      settingsOpen = !settingsOpen;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-close-settings]").forEach((button) => {
+    button.addEventListener("click", () => {
+      settingsOpen = false;
+      render();
+    });
+  });
+
+  const settingsOverlay = document.querySelector("[data-settings-overlay]");
+  if (settingsOverlay) {
+    settingsOverlay.addEventListener("click", (e) => {
+      if (e.target === settingsOverlay) {
+        settingsOpen = false;
+        render();
+      }
+    });
+  }
 
   document.querySelectorAll("[data-toggle-date-picker]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1237,7 +1614,20 @@ function bindEvents() {
         state.trackedTags = [id];
       }
       saveState();
-      render();
+      renderPreservingSettingsScroll();
+    });
+  });
+
+  document.querySelectorAll("[data-load-favorite]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.loadFavorite;
+      const fav = state.favorites.find((f) => f.id === id);
+      if (!fav || !editor) return;
+      fav.lastUsedAt = Date.now();
+      saveState();
+      const slot = availableSlot(fav.slot, editor.id, editor.date) || editor.slot;
+      editor = { ...editor, slot, title: fav.title, tags: [...fav.tags], fullness: fav.fullness, carbs: fav.carbs, speed: fav.speed, memo: fav.memo };
+      renderPreservingSheetScroll();
     });
   });
 
@@ -1283,27 +1673,95 @@ function bindEvents() {
     });
   });
 
-  const photoInput = document.querySelector("[data-photo-input]");
-  if (photoInput) {
-    photoInput.addEventListener("change", async (event) => {
+  document.querySelectorAll("[data-photo-pick]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const ctx = btn.dataset.ctx;
+      const menu = document.querySelector(`[data-photo-menu="${ctx}"]`);
+      if (!menu) return;
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      if (opening) {
+        const close = (ev) => {
+          if (!menu.contains(ev.target)) {
+            menu.hidden = true;
+            document.removeEventListener("click", close);
+          }
+        };
+        setTimeout(() => document.addEventListener("click", close), 0);
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-photo-camera]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ctx = btn.dataset.ctx;
+      document.querySelector(`[data-photo-menu="${ctx}"]`)?.setAttribute("hidden", "");
+      document.querySelector(`[data-camera-input][data-ctx="${ctx}"]`)?.click();
+    });
+  });
+
+  document.querySelectorAll("[data-photo-gallery]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ctx = btn.dataset.ctx;
+      document.querySelector(`[data-photo-menu="${ctx}"]`)?.setAttribute("hidden", "");
+      document.querySelector(`[data-gallery-input][data-ctx="${ctx}"]`)?.click();
+    });
+  });
+
+  document.querySelectorAll("[data-camera-input]").forEach((input) => {
+    input.addEventListener("change", async (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      syncEditorFromForm();
-      editor.photo = await fileToPhotoDataUrl(file);
-      render();
+      const dataUrl = await fileToPhotoDataUrl(file);
+      savePhotoToDevice(dataUrl);
+      const ref = await savePhotoToIndexedDB(dataUrl);
+      if (input.dataset.ctx === "editor") {
+        syncEditorFromForm();
+        editor.photo = ref;
+        render();
+      } else {
+        syncDetailFromForm();
+        if (detailDraft) detailDraft.photo = ref;
+        renderPreservingDetailScroll();
+      }
     });
-  }
+  });
 
-  const detailPhotoInput = document.querySelector("[data-detail-photo-input]");
-  if (detailPhotoInput) {
-    detailPhotoInput.addEventListener("change", async (event) => {
+  document.querySelectorAll("[data-gallery-input]").forEach((input) => {
+    input.addEventListener("change", async (event) => {
       const file = event.target.files?.[0];
-      if (!file || !detailDraft) return;
-      syncDetailFromForm();
-      detailDraft.photo = await fileToPhotoDataUrl(file);
-      renderPreservingDetailScroll();
+      if (!file) return;
+      const dataUrl = await fileToPhotoDataUrl(file);
+      const ref = await savePhotoToIndexedDB(dataUrl);
+      if (input.dataset.ctx === "editor") {
+        syncEditorFromForm();
+        editor.photo = ref;
+        render();
+      } else {
+        syncDetailFromForm();
+        if (detailDraft) detailDraft.photo = ref;
+        renderPreservingDetailScroll();
+      }
     });
-  }
+  });
+
+  document.querySelectorAll("[data-photo-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (btn.dataset.ctx === "editor") {
+        syncEditorFromForm();
+        await deletePhoto(editor.photo);
+        editor.photo = "";
+        render();
+      } else {
+        if (!detailDraft) return;
+        syncDetailFromForm();
+        await deletePhoto(detailDraft.photo);
+        detailDraft.photo = "";
+        renderPreservingDetailScroll();
+      }
+    });
+  });
 
   const form = document.querySelector("[data-editor-form]");
   if (form) {
@@ -1347,7 +1805,7 @@ function bindEvents() {
   if (detailDeleteButton) {
     detailDeleteButton.addEventListener("click", () => {
       if (!detailDraft) return;
-      if (!window.confirm("이 기록을 삭제할까요? 삭제한 내용은 되돌릴 수 없어요.")) return;
+      if (!window.confirm("이 기록을 삭제할까요? 삭제한 내용은 되돌릴 수 없어요")) return;
       state.meals = state.meals.filter((meal) => meal.id !== detailDraft.id);
       saveState();
       mealDetailId = null;
@@ -1359,13 +1817,65 @@ function bindEvents() {
   const deleteButton = document.querySelector("[data-delete-meal]");
   if (deleteButton) {
     deleteButton.addEventListener("click", () => {
-      if (!window.confirm("이 기록을 삭제할까요? 삭제한 내용은 되돌릴 수 없어요.")) return;
+      if (!window.confirm("이 기록을 삭제할까요? 삭제한 내용은 되돌릴 수 없어요")) return;
       state.meals = state.meals.filter((meal) => meal.id !== editor.id);
       saveState();
       editor = null;
       render();
     });
   }
+
+  document.querySelectorAll("[data-toggle-favorite]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mealId = btn.dataset.toggleFavorite;
+      const existing = state.favorites.find((f) => f.fromMealId === mealId);
+      if (existing) {
+        state.favorites = state.favorites.filter((f) => f.fromMealId !== mealId);
+      } else {
+        if (!detailDraft) return;
+        if (state.favorites.length >= favoritesLimit) {
+          showToast(`즐겨찾기는 최대 ${favoritesLimit}개까지 저장할 수 있어요. 설정에서 불필요한 항목을 삭제해 주세요.`);
+          return;
+        }
+        syncDetailFromForm();
+        state.favorites = [...state.favorites, {
+          id: crypto.randomUUID(),
+          fromMealId: detailDraft.id,
+          name: detailDraft.title || detailDraft.slot,
+          slot: detailDraft.slot,
+          title: detailDraft.title,
+          tags: [...detailDraft.tags],
+          fullness: detailDraft.fullness,
+          carbs: detailDraft.carbs,
+          speed: detailDraft.speed,
+          memo: detailDraft.memo,
+          lastUsedAt: Date.now()
+        }];
+      }
+      saveState();
+      renderPreservingDetailScroll();
+    });
+  });
+
+  document.querySelectorAll("[data-open-favorite]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.openFavorite;
+      const fav = state.favorites.find((f) => f.id === id);
+      if (!fav) return;
+      editor = draftFromFavorite(fav);
+      settingsOpen = false;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-delete-favorite]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.deleteFavorite;
+      state.favorites = state.favorites.filter((f) => f.id !== id);
+      saveState();
+      render();
+    });
+  });
 }
 
 function syncEditorFromForm() {
@@ -1387,9 +1897,58 @@ function syncDetailFromForm() {
 }
 
 function renderPhotoPreview(photo) {
-  return photo
-    ? `<span class="photo-image" style="background-image: url('${escapeHtml(photo)}')" aria-hidden="true"></span>`
+  const url = resolvePhoto(photo);
+  return url
+    ? `<span class="photo-image" style="background-image: url('${escapeHtml(url)}')" aria-hidden="true"></span>`
     : `<span class="photo-placeholder">${plusIcon()}</span>`;
+}
+
+function renderPhotoHero(photo, ctx) {
+  return `
+    <div class="photo-hero">
+      ${photo
+        ? `${renderPhotoPreview(photo)}
+           <button type="button" class="photo-edit-icon" data-photo-pick data-ctx="${ctx}" aria-label="사진 수정">${editIcon()}</button>`
+        : `<button type="button" class="photo-add-btn" data-photo-pick data-ctx="${ctx}" aria-label="사진 추가">
+             <span class="photo-placeholder">${cameraIcon()}</span>
+           </button>`
+      }
+      <div class="photo-menu" data-photo-menu="${ctx}" hidden>
+        <button type="button" class="photo-menu-item" data-photo-camera data-ctx="${ctx}">
+          <span class="photo-menu-icon">${cameraIcon()}</span>카메라로 찍기
+        </button>
+        <button type="button" class="photo-menu-item" data-photo-gallery data-ctx="${ctx}">
+          <span class="photo-menu-icon">${galleryIcon()}</span>앨범에서 선택
+        </button>
+        ${photo ? `<button type="button" class="photo-menu-item photo-menu-delete" data-photo-delete data-ctx="${ctx}">삭제</button>` : ""}
+      </div>
+      <input type="file" accept="image/*" capture="environment" data-camera-input data-ctx="${ctx}" style="display:none">
+      <input type="file" accept="image/*" data-gallery-input data-ctx="${ctx}" style="display:none">
+    </div>
+  `;
+}
+
+function savePhotoToDevice(dataUrl) {
+  try {
+    const a = document.createElement("a");
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+    a.href = dataUrl;
+    a.download = `끼니록_${ts}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 100);
+  } catch {}
+}
+
+function renderPreservingSettingsScroll() {
+  const sheet = document.querySelector(".settings-sheet");
+  const scrollTop = sheet?.scrollTop || 0;
+  render();
+  const nextSheet = document.querySelector(".settings-sheet");
+  if (nextSheet) {
+    nextSheet.style.animation = "none";
+    nextSheet.scrollTop = scrollTop;
+  }
 }
 
 function renderPreservingSheetScroll() {
@@ -1466,10 +2025,82 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.getRegistrations?.().then((registrations) => {
-    registrations.forEach((registration) => registration.unregister());
-  });
+function resolvePhoto(ref) {
+  if (!ref) return "";
+  if (ref.startsWith("idb:")) return photoCache.get(ref) || "";
+  return ref;
 }
 
-render();
+async function savePhotoToIndexedDB(dataUrl) {
+  const id = crypto.randomUUID();
+  const ref = `idb:${id}`;
+  await photoDB.put(id, dataUrl);
+  photoCache.set(ref, dataUrl);
+  return ref;
+}
+
+async function deletePhoto(ref) {
+  if (!ref || !ref.startsWith("idb:")) return;
+  const id = ref.slice(4);
+  await photoDB.del(id);
+  photoCache.delete(ref);
+}
+
+async function migratePhotosToIndexedDB() {
+  let changed = false;
+  for (const meal of state.meals) {
+    if (meal.photo && meal.photo.startsWith("data:")) {
+      const id = crypto.randomUUID();
+      const ref = `idb:${id}`;
+      await photoDB.put(id, meal.photo);
+      photoCache.set(ref, meal.photo);
+      meal.photo = ref;
+      changed = true;
+    }
+  }
+  if (changed) saveState();
+}
+
+async function loadPhotoCache() {
+  for (const meal of state.meals) {
+    if (meal.photo && meal.photo.startsWith("idb:") && !photoCache.has(meal.photo)) {
+      const id = meal.photo.slice(4);
+      const dataUrl = await photoDB.get(id);
+      if (dataUrl) photoCache.set(meal.photo, dataUrl);
+    }
+  }
+}
+
+function draftFromFavorite(fav) {
+  const slot = availableSlot(fav.slot, null, viewedDate) || mealSlots[0];
+  return {
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+    date: viewedDate,
+    slot,
+    title: fav.title,
+    tags: [...fav.tags],
+    fullness: fav.fullness,
+    carbs: fav.carbs,
+    speed: fav.speed,
+    memo: fav.memo,
+    photo: ""
+  };
+}
+
+async function init() {
+  try {
+    await photoDB.open();
+  } catch {}
+  state = loadState();
+  await migratePhotosToIndexedDB();
+  await loadPhotoCache();
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistrations?.().then((registrations) => {
+      registrations.forEach((registration) => registration.unregister());
+    });
+  }
+  render();
+}
+
+init();
