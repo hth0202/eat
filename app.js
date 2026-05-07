@@ -568,15 +568,7 @@ function renderToday() {
       ${datePickerOpen ? renderDatePicker() : ""}
     </section>
 
-    <section class="section">
-      <div class="insight notice">
-        <div class="notice-top">
-          <span class="notice-badge">${meals.length ? `${meals.length}끼 기록` : "아직 기록 없음"}</span>
-        </div>
-        <h3>${todayInsightTitle(meals, dayCopy)}</h3>
-        <p>${todayInsight(meals, counts, dayCopy)}</p>
-      </div>
-    </section>
+    <div class="insight-bar">${todayInsight(meals, counts, dayCopy)}</div>
 
     <section class="section">
       <div class="section-head">
@@ -924,14 +916,9 @@ function todayInsightTitle(meals, dayCopy = "오늘") {
 
 function todayInsight(meals, counts, dayCopy = "오늘") {
   if (!meals.length) {
-    const streak = getStreakDays();
-    if (streak >= 2) return `어제까지 ${streak - 1}일 연속이었어요, 오늘도 한 끼 남겨봐요`;
-    const recentDays = recentMeals(7);
-    if (recentDays.length >= 5) return "이번 주 꾸준히 기록했어요, 오늘 첫 끼니를 남겨봐요";
-    return "한 끼만 남겨봐요, 완벽하지 않아도 돼요";
+    return "오늘 첫 끼니를 남겨봐요";
   }
 
-  const streak = getStreakDays();
   const highCarbCount = meals.filter((meal) => meal.carbs === "많이").length;
   const highFullnessCount = meals.filter((meal) => ["적당에서 약간 배부름", "배 터질 것 같음"].includes(meal.fullness)).length;
   const fastMealCount = meals.filter((meal) => meal.speed === "10분 이내").length;
@@ -945,14 +932,6 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
   const proteinCount = counts.protein || 0;
   const bloatCount = counts.bloat || 0;
   const sleepyCount = counts.sleepy || 0;
-
-  if (streak >= 7 && meals.length > 0) {
-    return `${streak}일 연속 기록 중이에요, 식습관 패턴이 보이기 시작할 거예요`;
-  }
-
-  if (streak >= 3 && meals.length > 0 && balancedFullnessCount >= 1 && bloatCount === 0) {
-    return `${streak}일째 기록하고 있어요, 오늘도 잘 챙긴 것 같아요`;
-  }
 
   if (bloatCount > 0 && sleepyCount > 0) {
     return "더부룩하고 졸리기도 했네요, 어떤 메뉴였는지 메모에 남겨봐요";
@@ -999,38 +978,34 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
   }
 
   if (slowMealCount > 0 && balancedFullnessCount > 0) {
-    return "천천히, 적당히 먹었어요, 좋은 패턴이에요";
+    return "천천히, 적당히 먹었어요";
   }
 
   if (slowMealCount > 0) {
-    return "천천히 먹었어요, 좋은 습관이에요";
+    return "천천히 먹은 끼니가 있었어요, 좋은 습관이에요";
   }
 
   if (vegCount > 0 && proteinCount > 0) {
-    return "채소와 단백질을 모두 챙겼어요, 균형 잡힌 하루예요";
+    return "채소와 단백질을 모두 챙겼어요";
   }
 
   if (vegCount > 0 || proteinCount > 0) {
-    return "채소나 단백질을 챙겼어요, 잘 하고 있어요";
+    return "채소나 단백질을 챙겼어요";
   }
 
   if (balancedFullnessCount >= 2) {
-    return "포만감을 잘 조절했어요, 오늘 기록이 좋네요";
+    return "포만감을 잘 조절한 하루예요";
   }
 
   if (balancedFullnessCount > 0) {
-    return "적당한 포만감이었어요, 오늘 기록 좋아요";
+    return "적당한 포만감으로 먹었어요";
   }
 
   if (lightFullnessCount > 0) {
     return "산뜻하게 먹었어요, 든든하기도 했는지 살펴봐요";
   }
 
-  if (meals.length >= 3) {
-    return "세 끼를 모두 기록했어요, 오늘 하루 식습관이 쌓였어요";
-  }
-
-  return "기록이 쌓이고 있어요, 몸 상태도 메모에 남겨봐요";
+  return "몸 상태도 메모에 남겨봐요";
 }
 
 function renderFlow() {
