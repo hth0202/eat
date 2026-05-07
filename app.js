@@ -147,6 +147,7 @@ let editor = null;
 let mealDetailId = null;
 let detailDraft = null;
 let settingsOpen = false;
+let tagEditMode = false;
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
@@ -1263,23 +1264,36 @@ function renderSettingsPage() {
   return `
     <div class="spage">
 
-      <p class="spage-label">홈 화면 요약 <span class="spage-label-badge">${state.trackedTags.length}/${trackedTagLimit}</span></p>
-      <p class="spage-sublabel">탭해서 홈에 크게 표시할 항목을 최대 ${trackedTagLimit}개 골라요</p>
-      <div class="spage-group">
-        ${categories.map((cat) => {
-          const tags = defaultTags.filter((t) => state.selectedTags.includes(t.id) && t.category === cat);
-          if (!tags.length) return "";
-          return `
-            <div class="spage-cat-label">${cat}</div>
-            ${tags.map((tag, i) => `
-              <button class="spage-row ${state.trackedTags.includes(tag.id) ? "spage-row--on" : ""}" data-toggle-tracked="${tag.id}">
-                <span class="spage-row-label">${tag.label}</span>
-                <span class="spage-row-check">${state.trackedTags.includes(tag.id) ? `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 6L9 17l-5-5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor"/></svg>` : ""}</span>
-              </button>
-            `).join("")}
-          `;
-        }).join("")}
+      <div class="spage-label-row">
+        <p class="spage-label">요약에 표시 <span class="spage-label-badge">${state.trackedTags.length}/${trackedTagLimit}</span></p>
+        <button class="spage-edit-btn" data-tag-edit-toggle>${tagEditMode ? "완료" : "편집"}</button>
       </div>
+      ${tagEditMode ? `
+        <p class="spage-sublabel">최대 ${trackedTagLimit}개까지 홈에 크게 표시돼요</p>
+        <div class="spage-group">
+          ${categories.map((cat) => {
+            const tags = defaultTags.filter((t) => state.selectedTags.includes(t.id) && t.category === cat);
+            if (!tags.length) return "";
+            return `
+              <div class="spage-cat-label">${cat}</div>
+              ${tags.map((tag) => `
+                <button class="spage-row ${state.trackedTags.includes(tag.id) ? "spage-row--on" : ""}" data-toggle-tracked="${tag.id}">
+                  <span class="spage-row-label">${tag.label}</span>
+                  <span class="spage-row-check">${state.trackedTags.includes(tag.id) ? `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 6L9 17l-5-5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke="currentColor"/></svg>` : ""}</span>
+                </button>
+              `).join("")}
+            `;
+          }).join("")}
+        </div>
+      ` : `
+        <div class="spage-tracked-chips">
+          ${state.trackedTags.length ? state.trackedTags.map((id) => {
+            const tag = tagById(id);
+            if (!tag) return "";
+            return `<span class="chip ${tag.group} active" style="pointer-events:none">${tag.label}</span>`;
+          }).join("") : `<span class="spage-sublabel" style="margin:0">아직 선택된 항목이 없어요</span>`}
+        </div>
+      `}
 
       <p class="spage-label">즐겨찾기 <span class="spage-label-badge">${state.favorites.length}개</span></p>
       <div class="spage-group">
@@ -1498,6 +1512,7 @@ function bindEvents() {
   document.querySelectorAll("[data-toggle-settings]").forEach((button) => {
     button.addEventListener("click", () => {
       settingsOpen = !settingsOpen;
+      tagEditMode = false;
       render();
     });
   });
@@ -1505,6 +1520,7 @@ function bindEvents() {
   document.querySelectorAll("[data-close-settings]").forEach((button) => {
     button.addEventListener("click", () => {
       settingsOpen = false;
+      tagEditMode = false;
       render();
     });
   });
@@ -1890,6 +1906,11 @@ function bindEvents() {
       saveState();
       render();
     });
+  });
+
+  document.querySelector("[data-tag-edit-toggle]")?.addEventListener("click", () => {
+    tagEditMode = !tagEditMode;
+    renderPreservingSettingsScroll();
   });
 
   document.querySelector("[data-sign-in-google]")?.addEventListener("click", async () => {
