@@ -370,7 +370,7 @@ p {
   background: var(--surface);
   color: var(--ink);
   text-align: left;
-  box-shadow: var(--shadow);
+  box-shadow: 0 2px 12px rgba(25, 31, 40, 0.08);
 }
 
 .meal-card:active {
@@ -449,7 +449,7 @@ p {
 }
 
 .empty-cta-compact {
-  min-height: 80px;
+  min-height: 64px;
   margin-top: var(--space-3);
 }
 
@@ -644,7 +644,7 @@ p {
 }
 
 .insight-bar {
-  margin-top: var(--space-2);
+  margin-top: var(--space-4);
   padding: 9px var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--primary-soft);

@@ -2109,11 +2109,43 @@ function mergeStates(cloudState, localState) {
   });
 }
 
+function bindSwipeNavigation() {
+  let startX = 0;
+  let startY = 0;
+
+  document.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener("touchend", (e) => {
+    if (activeTab !== "today" || editor || mealDetailId || settingsOpen || datePickerOpen) return;
+
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+    if (dx < 0) {
+      const nextDate = addDays(viewedDate, 1);
+      if (nextDate > todayKey()) return;
+      viewedDate = nextDate;
+    } else {
+      viewedDate = addDays(viewedDate, -1);
+    }
+
+    datePickerOpen = false;
+    render();
+    window.scrollTo({ top: 0, left: 0 });
+  }, { passive: true });
+}
+
 async function init() {
   try {
     await photoDB.open();
   } catch {}
   state = loadState();
+  bindSwipeNavigation();
   await migratePhotosToIndexedDB();
   await loadPhotoCache();
   if ("serviceWorker" in navigator) {
