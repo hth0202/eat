@@ -1927,8 +1927,14 @@ function bindEvents() {
 
   document.querySelector("[data-sign-in-google]")?.addEventListener("click", async () => {
     const provider = new firebase.auth.GoogleAuthProvider();
+    const isPwa = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     try {
-      await auth.signInWithPopup(provider);
+      if (isPwa || isMobile) {
+        await auth.signInWithRedirect(provider);
+      } else {
+        await auth.signInWithPopup(provider);
+      }
     } catch (err) {
       console.error("로그인 실패:", err);
     }
