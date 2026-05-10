@@ -264,6 +264,19 @@ function tagById(id) {
   return defaultTags.find((tag) => tag.id === id);
 }
 
+function josa(word, type) {
+  const code = word.charCodeAt(word.length - 1);
+  const hasFinal = (code - 0xAC00) % 28 !== 0;
+  switch (type) {
+    case "이/가": return hasFinal ? "이" : "가";
+    case "을/를": return hasFinal ? "을" : "를";
+    case "은/는": return hasFinal ? "은" : "는";
+    case "이/": return hasFinal ? "이" : "";
+    case "으로/로": return hasFinal ? "으로" : "로";
+    default: return "";
+  }
+}
+
 function applyTagToggle(currentTags, id, forceAdd = false) {
   const tag = tagById(id);
   if (!tag) return currentTags;
@@ -880,47 +893,42 @@ function getStreakDays() {
 function getWeekHighlights(weekMeals, weekCounts, streak) {
   const highlights = [];
 
-  if (streak >= 7) {
-    highlights.push({ type: "great", text: `${streak}일 연속 기록 중이에요` });
-  } else if (streak >= 3) {
-    highlights.push({ type: "good", text: `${streak}일 연속으로 기록하고 있어요` });
-  }
+  if (streak >= 14) highlights.push({ type: "great", text: `${streak}일 연속 기록 중이에요` });
+  else if (streak >= 7) highlights.push({ type: "great", text: `${streak}일 연속 기록 중이에요` });
+  else if (streak >= 3) highlights.push({ type: "good", text: `${streak}일 연속으로 기록하고 있어요` });
+
+  const comfortableCount = weekCounts.comfortable || 0;
+  if (comfortableCount >= 4) highlights.push({ type: "good", text: `속이 편한 끼니가 이번 주 ${comfortableCount}번이에요` });
+
+  const proteinCount = weekCounts.protein || 0;
+  if (proteinCount >= 4) highlights.push({ type: "good", text: `단백질을 이번 주 ${proteinCount}번 챙겼어요` });
 
   const vegCount = weekCounts.veg || 0;
-  if (vegCount >= 4) {
-    highlights.push({ type: "good", text: `채소를 이번 주 ${vegCount}번 챙겼어요` });
-  }
+  if (vegCount >= 4) highlights.push({ type: "good", text: `채소를 이번 주 ${vegCount}번 챙겼어요` });
 
   const homeCount = weekCounts.home || 0;
-  if (homeCount >= 4) {
-    highlights.push({ type: "good", text: `집밥을 이번 주 ${homeCount}번 먹었어요` });
-  }
-
-  const deliveryCount = weekCounts.delivery || 0;
-  if (deliveryCount >= 4) {
-    highlights.push({ type: "watch", text: `배달을 이번 주 ${deliveryCount}번 했어요` });
-  }
-
-  const fastCount = weekMeals.filter((m) => m.speed === "20분 이내").length;
-  if (fastCount >= 4) {
-    highlights.push({ type: "watch", text: `빠르게 먹은 끼니가 ${fastCount}번이에요` });
-  }
+  if (homeCount >= 4) highlights.push({ type: "good", text: `집밥을 이번 주 ${homeCount}번 먹었어요` });
 
   const balancedCount = weekMeals.filter((m) => m.fullness === "적당함").length;
-  if (balancedCount >= 4) {
-    highlights.push({ type: "good", text: `적당한 포만감으로 먹은 끼니가 ${balancedCount}번이에요` });
-  }
+  if (balancedCount >= 5) highlights.push({ type: "good", text: `포만감을 잘 조절한 끼니가 ${balancedCount}번이에요` });
+
+  const heartburnCount = weekCounts.heartburn || 0;
+  if (heartburnCount >= 3) highlights.push({ type: "watch", text: `속쓰림이 이번 주 ${heartburnCount}번이에요` });
+
+  const deliveryCount = weekCounts.delivery || 0;
+  if (deliveryCount >= 4) highlights.push({ type: "watch", text: `배달을 이번 주 ${deliveryCount}번 했어요` });
+
+  const fastCount = weekMeals.filter((m) => m.speed === "20분 이내").length;
+  if (fastCount >= 4) highlights.push({ type: "watch", text: `빠르게 먹은 끼니가 ${fastCount}번이에요` });
 
   const lateCount = weekCounts.late || 0;
-  if (lateCount >= 3) {
-    highlights.push({ type: "watch", text: `야식이 이번 주 ${lateCount}번이에요` });
-  }
+  if (lateCount >= 3) highlights.push({ type: "watch", text: `야식이 이번 주 ${lateCount}번이에요` });
 
   if (!highlights.length && weekMeals.length >= 7) {
     highlights.push({ type: "good", text: `이번 주 ${weekMeals.length}끼 모두 기록했어요` });
   }
 
-  return highlights.slice(0, 3);
+  return highlights.slice(0, 4);
 }
 
 function todayInsightTitle(meals, dayCopy = "오늘") {
@@ -928,98 +936,114 @@ function todayInsightTitle(meals, dayCopy = "오늘") {
   return `${meals.length}끼 기록했어요`;
 }
 
+function computeTodaySignals(meals, counts) {
+  return {
+    mealCount: meals.length,
+    highCarbCount: meals.filter((m) => m.carbs === "많이").length,
+    lowCarbCount: meals.filter((m) => ["없음", "적게"].includes(m.carbs)).length,
+    bingeCount: meals.filter((m) => m.fullness === "배 터질 것 같음").length,
+    highFullnessCount: meals.filter((m) => ["적당에서 약간 배부름", "배 터질 것 같음"].includes(m.fullness)).length,
+    balancedCount: meals.filter((m) => m.fullness === "적당함").length,
+    lightCount: meals.filter((m) => m.fullness === "가볍게 먹음").length,
+    lowCount: meals.filter((m) => m.fullness === "배고픔만 겨우 채움").length,
+    fastCount: meals.filter((m) => m.speed === "20분 이내").length,
+    slowCount: meals.filter((m) => m.speed === "1시간 이상").length,
+    bloatCount: counts.bloat || 0,
+    heartburnCount: counts.heartburn || 0,
+    sleepyCount: counts.sleepy || 0,
+    comfortableCount: counts.comfortable || 0,
+    vegCount: counts.veg || 0,
+    proteinCount: counts.protein || 0,
+    sweetCount: counts.sweet || 0,
+    sodiumCount: counts.sodium || 0,
+    deliveryCount: counts.delivery || 0,
+    homeCount: counts.home || 0,
+  };
+}
+
 function todayInsight(meals, counts, dayCopy = "오늘") {
-  if (!meals.length) {
-    return "오늘 첫 끼니를 남겨봐요";
-  }
+  if (!meals.length) return "오늘 첫 끼니를 남겨봐요";
 
-  const highCarbCount = meals.filter((meal) => meal.carbs === "많이").length;
-  const highFullnessCount = meals.filter((meal) => ["적당에서 약간 배부름", "배 터질 것 같음"].includes(meal.fullness)).length;
-  const fastMealCount = meals.filter((meal) => meal.speed === "20분 이내").length;
-  const slowMealCount = meals.filter((meal) => meal.speed === "1시간 이상").length;
-  const lightFullnessCount = meals.filter((meal) => meal.fullness === "가볍게 먹음").length;
-  const balancedFullnessCount = meals.filter((meal) => meal.fullness === "적당함").length;
-  const lowFullnessCount = meals.filter((meal) => meal.fullness === "배고픔만 겨우 채움").length;
-  const bingeFullnessCount = meals.filter((meal) => meal.fullness === "배 터질 것 같음").length;
-  const sweetCount = counts.sweet || 0;
-  const vegCount = counts.veg || 0;
-  const proteinCount = counts.protein || 0;
-  const bloatCount = counts.bloat || 0;
-  const sleepyCount = counts.sleepy || 0;
+  const s = computeTodaySignals(meals, counts);
 
-  if (bloatCount > 0 && sleepyCount > 0) {
-    return "더부룩하고 졸리기도 했네요, 어떤 메뉴였는지 메모에 남겨봐요";
-  }
+  const candidates = [
+    // 불편 신호 (500–699)
+    { score: 680 + (s.heartburnCount + s.bloatCount) * 20, cond: s.heartburnCount > 0 && s.bloatCount > 0,
+      msg: "속이 좀 불편했네요, 어떤 메뉴였는지 메모에 남겨봐요" },
+    { score: 640 + s.heartburnCount * 20, cond: s.heartburnCount > 0,
+      msg: "속쓰림이 있었어요, 자극적인 음식이 있었는지 살펴봐요" },
+    { score: 620 + s.bloatCount * 20, cond: s.bloatCount > 0 && s.sleepyCount > 0,
+      msg: "더부룩하고 졸리기도 했네요, 어떤 메뉴였는지 메모에 남겨봐요" },
+    { score: 600 + s.bloatCount * 20, cond: s.bloatCount >= 2,
+      msg: "더부룩함이 여러 번이었어요, 어떤 끼니 후였는지 살펴봐요" },
+    { score: 560, cond: s.bloatCount > 0,
+      msg: "더부룩함이 한 번 있었어요, 어떤 메뉴였는지 살펴봐요" },
+    { score: 540 + s.highCarbCount * 10, cond: s.sleepyCount > 0 && s.highCarbCount >= 1,
+      msg: "식후 졸림이 있었어요, 탄수화물 양이 영향을 줬을 수 있어요" },
+    { score: 510, cond: s.sleepyCount > 0,
+      msg: "식후에 졸리기도 했네요, 식사 속도나 양이 어땠는지 살펴봐요" },
 
-  if (bloatCount > 0) {
-    return "더부룩함이 있었어요, 어떤 메뉴였는지 살펴봐요";
-  }
+    // 행동 경고 (230–430)
+    { score: 430 + s.bingeCount * 20 + s.fastCount * 10, cond: s.bingeCount > 0 && s.fastCount > 0,
+      msg: "빨리 먹고 많이 먹은 끼니가 있었어요, 천천히 먹으면 포만감이 더 잘 느껴져요" },
+    { score: 400 + s.bingeCount * 20, cond: s.bingeCount > 0,
+      msg: "많이 먹은 끼니가 있었어요, 다음엔 한 박자 느리게요" },
+    { score: 370 + s.deliveryCount * 20, cond: s.deliveryCount >= s.mealCount && s.mealCount >= 2,
+      msg: "오늘 끼니를 모두 배달로 했어요, 내일은 간단하게 직접 챙겨봐요" },
+    { score: 350 + s.deliveryCount * 20, cond: s.deliveryCount >= 2,
+      msg: "배달을 자주 했어요, 다음 끼니는 집밥 어때요?" },
+    { score: 330 + s.sodiumCount * 20, cond: s.sodiumCount >= 2,
+      msg: "짠 게 좀 많았네요, 물을 조금 더 마셔봐요" },
+    { score: 310 + s.highCarbCount * 20, cond: s.highCarbCount >= 2 && s.vegCount === 0 && s.proteinCount === 0,
+      msg: "탄수화물이 많은 편이었어요, 채소나 단백질을 곁들이면 균형이 잡혀요" },
+    { score: 290 + s.highCarbCount * 20, cond: s.highCarbCount >= 2,
+      msg: "탄수화물이 좀 많았어요, 다음엔 채소나 단백질을 곁들여봐요" },
+    { score: 270 + s.fastCount * 10 + s.highCarbCount * 10, cond: s.fastCount >= 1 && s.highCarbCount >= 1,
+      msg: "빠르게 먹고 탄수화물도 많았어요, 천천히 먹으면 포만감이 더 잘 느껴져요" },
+    { score: 260 + s.highFullnessCount * 15, cond: s.highFullnessCount >= 2,
+      msg: "포만감이 높은 끼니가 여러 번이에요, 다음엔 한 단계 가볍게요" },
+    { score: 250 + s.fastCount * 15, cond: s.fastCount >= 2,
+      msg: "빨리 먹은 끼니가 여러 번이에요, 다음엔 조금 천천히요" },
+    { score: 240, cond: s.lowCount > 0 && s.vegCount === 0 && s.proteinCount === 0,
+      msg: "식사량이 부족했을 수 있어요, 채소나 단백질을 더 챙겨봐요" },
+    { score: 230, cond: s.sweetCount > 0 && s.homeCount === 0,
+      msg: "당이 조금 있었어요, 다음 끼니는 담백하게 골라봐요" },
 
-  if (sleepyCount > 0 && highCarbCount >= 1) {
-    return "식후 졸림이 있었어요, 탄수화물 양이 영향을 줬을 수 있어요";
-  }
+    // 긍정 신호 (80–200)
+    { score: 200 + s.slowCount * 10 + s.balancedCount * 10 + s.vegCount * 5 + s.proteinCount * 5,
+      cond: s.slowCount > 0 && s.balancedCount > 0 && s.vegCount > 0 && s.proteinCount > 0,
+      msg: "균형 있게 잘 먹었어요" },
+    { score: 185 + s.slowCount * 10 + s.balancedCount * 10,
+      cond: s.slowCount > 0 && s.balancedCount > 0,
+      msg: "천천히, 적당히 먹었어요" },
+    { score: 170, cond: s.slowCount > 0,
+      msg: "천천히 먹은 끼니가 있었어요, 좋은 습관이에요" },
+    { score: 160 + s.vegCount * 10 + s.proteinCount * 10,
+      cond: s.vegCount > 0 && s.proteinCount > 0 && s.highCarbCount === 0,
+      msg: "채소, 단백질, 탄수까지 균형 있게 챙겼어요" },
+    { score: 150 + s.vegCount * 10 + s.proteinCount * 10,
+      cond: s.vegCount > 0 && s.proteinCount > 0,
+      msg: "채소와 단백질을 모두 챙겼어요" },
+    { score: 140 + s.comfortableCount * 15 + s.balancedCount * 10,
+      cond: s.comfortableCount > 0 && s.balancedCount > 0,
+      msg: "속도 편하고 포만감도 좋았어요, 오늘 식사 패턴을 기억해둬요" },
+    { score: 130 + s.comfortableCount * 15, cond: s.comfortableCount > 0,
+      msg: "속이 편한 하루였네요" },
+    { score: 120 + s.vegCount * 5 + s.proteinCount * 5,
+      cond: s.vegCount > 0 || s.proteinCount > 0,
+      msg: "채소나 단백질을 챙겼어요" },
+    { score: 110 + s.balancedCount * 15, cond: s.balancedCount >= 2,
+      msg: "포만감을 잘 조절한 하루예요" },
+    { score: 100 + s.balancedCount * 15, cond: s.balancedCount > 0,
+      msg: "적당한 포만감으로 먹었어요" },
+    { score: 90, cond: s.lightCount > 0 && s.lowCount === 0,
+      msg: "산뜻하게 먹었어요" },
+    { score: 80, cond: s.lightCount > 0,
+      msg: "산뜻하게 먹었어요, 든든하기도 했는지 살펴봐요" },
+  ];
 
-  if ((counts.delivery || 0) >= 2) {
-    return "배달을 자주 했어요, 다음 끼니는 집밥 어때요?";
-  }
-
-  if ((counts.sodium || 0) >= 2) {
-    return "짠 게 좀 많았네요, 물을 조금 더 마셔봐요";
-  }
-
-  if (highCarbCount >= 2) {
-    return "탄수화물이 좀 많았어요, 다음엔 채소나 단백질을 곁들여봐요";
-  }
-
-  if (bingeFullnessCount > 0) {
-    return "많이 먹은 끼니가 있었어요, 다음엔 한 박자 느리게요";
-  }
-
-  if (highFullnessCount >= 2) {
-    return "포만감이 높은 끼니가 여러 번이에요, 다음엔 한 단계 가볍게요";
-  }
-
-  if (fastMealCount >= 2) {
-    return "빨리 먹은 끼니가 여러 번이에요, 다음엔 조금 천천히요";
-  }
-
-  if (lowFullnessCount > 0 && vegCount === 0 && proteinCount === 0) {
-    return "식사량이 부족했을 수 있어요, 채소나 단백질을 더 챙겨봐요";
-  }
-
-  if (sweetCount > 0 && (counts.home || 0) === 0) {
-    return "당이 조금 있었어요, 다음 끼니는 담백하게 골라봐요";
-  }
-
-  if (slowMealCount > 0 && balancedFullnessCount > 0) {
-    return "천천히, 적당히 먹었어요";
-  }
-
-  if (slowMealCount > 0) {
-    return "천천히 먹은 끼니가 있었어요, 좋은 습관이에요";
-  }
-
-  if (vegCount > 0 && proteinCount > 0) {
-    return "채소와 단백질을 모두 챙겼어요";
-  }
-
-  if (vegCount > 0 || proteinCount > 0) {
-    return "채소나 단백질을 챙겼어요";
-  }
-
-  if (balancedFullnessCount >= 2) {
-    return "포만감을 잘 조절한 하루예요";
-  }
-
-  if (balancedFullnessCount > 0) {
-    return "적당한 포만감으로 먹었어요";
-  }
-
-  if (lightFullnessCount > 0) {
-    return "산뜻하게 먹었어요, 든든하기도 했는지 살펴봐요";
-  }
-
-  return "몸 상태도 메모에 남겨봐요";
+  const best = candidates.filter((c) => c.cond).sort((a, b) => b.score - a.score)[0];
+  return best?.msg || "먹고 나서 느낌도 메모에 남겨봐요";
 }
 
 function renderFlow() {
@@ -1159,75 +1183,114 @@ function formatHistoryDate(date) {
   }).format(new Date(`${date}T00:00:00`));
 }
 
+function computeWeekSignals(weekMeals, counts, streak) {
+  return {
+    mealCount: weekMeals.length,
+    streak,
+    heartburnCount: counts.heartburn || 0,
+    bloatCount: counts.bloat || 0,
+    sleepyCount: counts.sleepy || 0,
+    comfortableCount: counts.comfortable || 0,
+    fastCount: weekMeals.filter((m) => m.speed === "20분 이내").length,
+    slowCount: weekMeals.filter((m) => m.speed === "1시간 이상").length,
+    balancedCount: weekMeals.filter((m) => m.fullness === "적당함").length,
+    deliveryCount: counts.delivery || 0,
+    homeCount: counts.home || 0,
+    vegCount: counts.veg || 0,
+    proteinCount: counts.protein || 0,
+    lateCount: counts.late || 0,
+    sodiumCount: counts.sodium || 0,
+    highCarbCount: weekMeals.filter((m) => m.carbs === "많이").length,
+  };
+}
+
 function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
   if (!weekMeals.length) {
     if (monthMeals.length > 0) return `지난달에 ${monthMeals.length}번 기록했어요, 이번 주도 시작해봐요`;
     return "첫 끼니를 기록하면 이번 주 패턴을 같이 살펴볼게요";
   }
 
-  const weekFastCount = weekMeals.filter((m) => m.speed === "20분 이내").length;
-  const weekDeliveryCount = counts.delivery || 0;
-  const weekVegCount = counts.veg || 0;
-  const weekProteinCount = counts.protein || 0;
-  const weekLateCount = counts.late || 0;
-  const weekSodiumCount = counts.sodium || 0;
-  const weekBloatCount = counts.bloat || 0;
-  const weekBalancedCount = weekMeals.filter((m) => m.fullness === "적당함").length;
+  const s = computeWeekSignals(weekMeals, counts, streak);
 
-  if (streak >= 14) {
-    return `${streak}일 연속 기록이에요, 이 정도면 식습관 패턴이 꽤 보일 거예요`;
-  }
-
-  if (weekBloatCount >= 3) {
-    return `더부룩함이 이번 주 ${weekBloatCount}번이에요, 어떤 끼니 후에 나타나는지 살펴봐요`;
-  }
-
-  if (weekDeliveryCount >= 4) {
-    return `이번 주 배달이 ${weekDeliveryCount}번이에요, 집밥이나 간단한 요리로 한두 번 바꿔볼까요`;
-  }
-
-  if (weekSodiumCount >= 3) {
-    return `짠 음식이 이번 주 ${weekSodiumCount}번이에요, 나트륨이 쌓이면 부기로 나타날 수 있어요`;
-  }
-
-  if (weekFastCount >= 4) {
-    return `이번 주 ${weekFastCount}끼를 빠르게 먹었어요, 천천히 먹으면 포만감이 더 잘 느껴져요`;
-  }
-
-  if (weekLateCount >= 3) {
-    return `야식이 이번 주 ${weekLateCount}번이에요, 저녁 식사 시간을 조금 앞당겨 볼까요`;
-  }
-
-  if (weekVegCount >= 4 && weekProteinCount >= 3) {
-    return "채소와 단백질을 꾸준히 챙겼어요, 이번 주 균형이 좋아요";
-  }
-
-  if (weekVegCount >= 4) {
-    return `채소를 이번 주 ${weekVegCount}번 챙겼어요, 단백질도 같이 챙기면 더 좋아요`;
-  }
-
-  if (weekBalancedCount >= 5) {
-    return `포만감이 적당했던 끼니가 ${weekBalancedCount}번이에요, 식사 조절이 잘 되고 있어요`;
-  }
-
-  if (weekVegCount === 0 && weekMeals.length >= 5) {
-    return "이번 주 채소 기록이 없어요, 다음 주엔 한 끼라도 채소를 곁들여봐요";
-  }
-
-  const watchTags = Object.entries(counts)
+  const watchTagCandidates = Object.entries(counts)
     .map(([id, count]) => ({ tag: tagById(id), count }))
     .filter((item) => item.tag?.group === "watch" && item.count >= 2)
-    .sort((a, b) => b.count - a.count)[0];
+    .sort((a, b) => b.count - a.count)
+    .map((item) => ({
+      score: 180 + item.count * 10,
+      cond: true,
+      msg: `${item.tag.label}${josa(item.tag.label, "이/가")} 이번 주에 ${item.count}번 나왔어요, 다음 주엔 조금 줄여봐요`,
+    }));
 
-  if (watchTags) {
-    return `${watchTags.tag.label}이 이번 주에 ${watchTags.count}번 나왔어요, 다음 주엔 조금 줄여봐요`;
-  }
+  const candidates = [
+    // 연속 기록 마일스톤 (800+)
+    { score: 870 + s.streak, cond: s.streak >= 21,
+      msg: `${s.streak}일 연속이에요, 식습관의 흐름이 잘 보이기 시작했을 거예요` },
+    { score: 820 + s.streak, cond: s.streak >= 14,
+      msg: `${s.streak}일 연속 기록이에요, 이 정도면 패턴이 꽤 보일 거예요` },
 
-  if (monthMeals.length >= 20) {
-    return `최근 한 달 ${monthMeals.length}번 기록했어요, 패턴이 잘 보이고 있어요`;
-  }
+    // 불편 신호 (500–699)
+    { score: 680 + s.heartburnCount * 20, cond: s.heartburnCount >= 3,
+      msg: `속쓰림이 이번 주 ${s.heartburnCount}번이에요, 자극적인 음식이나 식사 속도를 살펴봐요` },
+    { score: 640 + s.heartburnCount * 20, cond: s.heartburnCount >= 2,
+      msg: `속쓰림이 두 번 있었어요, 어떤 메뉴 후에 나타나는지 살펴봐요` },
+    { score: 620 + s.bloatCount * 10 + s.fastCount * 10, cond: s.bloatCount >= 3 && s.fastCount >= 3,
+      msg: `더부룩함과 빠른 식사가 겹치고 있어요, 천천히 먹으면 속이 나아질 수 있어요` },
+    { score: 600 + s.bloatCount * 15, cond: s.bloatCount >= 3,
+      msg: `더부룩함이 이번 주 ${s.bloatCount}번이에요, 어떤 끼니 후에 나타나는지 살펴봐요` },
+    { score: 560, cond: s.bloatCount >= 2,
+      msg: `더부룩함이 두 번 있었어요, 어떤 메뉴였는지 메모와 비교해봐요` },
 
-  return `이번 주 ${weekMeals.length}끼 기록했어요, 꾸준히 쌓아가고 있어요`;
+    // 행동 경고 (300–500)
+    { score: 500 + s.deliveryCount * 15, cond: s.deliveryCount >= 5,
+      msg: `이번 주 끼니 대부분이 배달이었어요, 집밥 한두 번만 챙겨봐요` },
+    { score: 470 + s.deliveryCount * 15, cond: s.deliveryCount >= 3,
+      msg: `이번 주 배달이 ${s.deliveryCount}번이에요, 집밥이나 간단한 요리로 한두 번 바꿔볼까요` },
+    { score: 450 + s.sodiumCount * 15, cond: s.sodiumCount >= 4,
+      msg: `짠 음식이 이번 주 ${s.sodiumCount}번이에요, 나트륨이 쌓이면 부기로 나타날 수 있어요` },
+    { score: 420, cond: s.sodiumCount >= 2,
+      msg: `짠 음식이 이번 주 두세 번 있었어요, 물을 조금 더 챙겨봐요` },
+    { score: 400 + s.fastCount * 15, cond: s.fastCount >= 5,
+      msg: `이번 주 거의 매 끼니를 빠르게 먹었어요, 한 끼라도 천천히 먹는 날을 만들어봐요` },
+    { score: 370 + s.fastCount * 15, cond: s.fastCount >= 3,
+      msg: `이번 주 ${s.fastCount}끼를 빠르게 먹었어요, 천천히 먹으면 포만감이 더 잘 느껴져요` },
+    { score: 350 + s.lateCount * 15, cond: s.lateCount >= 4,
+      msg: `야식이 이번 주 ${s.lateCount}번이에요, 저녁 식사 시간을 앞당기면 달라질 수 있어요` },
+    { score: 320 + s.lateCount * 15, cond: s.lateCount >= 2,
+      msg: `야식이 이번 주 ${s.lateCount}번 있었어요, 저녁 식사 시간을 조금 앞당겨 볼까요` },
+
+    // 긍정 신호 (190–300)
+    { score: 300 + s.vegCount * 10 + s.proteinCount * 10, cond: s.vegCount >= 5 && s.proteinCount >= 4,
+      msg: `채소와 단백질을 이번 주 내내 꾸준히 챙겼어요` },
+    { score: 280 + s.vegCount * 10 + s.proteinCount * 10, cond: s.vegCount >= 4 && s.proteinCount >= 3,
+      msg: `채소와 단백질을 꾸준히 챙겼어요, 이번 주 균형이 좋아요` },
+    { score: 260 + s.vegCount * 10, cond: s.vegCount >= 4,
+      msg: `채소를 이번 주 ${s.vegCount}번 챙겼어요, 단백질도 같이 챙기면 더 좋아요` },
+    { score: 240 + s.proteinCount * 10, cond: s.proteinCount >= 4,
+      msg: `단백질을 이번 주 ${s.proteinCount}번 챙겼어요, 채소도 한 끼라도 곁들여봐요` },
+    { score: 230 + s.balancedCount * 10, cond: s.balancedCount >= 6,
+      msg: `포만감 조절이 아주 잘 되고 있어요, 이번 주 식사 패턴 그대로 유지해봐요` },
+    { score: 210 + s.balancedCount * 10, cond: s.balancedCount >= 4,
+      msg: `포만감이 적당했던 끼니가 ${s.balancedCount}번이에요, 식사 조절이 잘 되고 있어요` },
+    { score: 190 + s.comfortableCount * 10, cond: s.comfortableCount >= 3,
+      msg: `속이 편한 끼니가 이번 주 ${s.comfortableCount}번이에요, 무엇이 달랐는지 메모를 살펴봐요` },
+
+    // 채소 0회 경고
+    { score: 170, cond: s.vegCount === 0 && s.mealCount >= 5,
+      msg: `이번 주 채소 기록이 없어요, 다음 주엔 한 끼라도 채소를 곁들여봐요` },
+
+    // watch 태그 동적 폴백 (score 180+)
+    ...watchTagCandidates,
+
+    // 한 달 마일스톤
+    { score: 150, cond: monthMeals.length >= 25,
+      msg: `최근 한 달 ${monthMeals.length}번 기록했어요, 패턴이 아주 잘 보이고 있어요` },
+    { score: 130, cond: monthMeals.length >= 15,
+      msg: `최근 한 달 ${monthMeals.length}번 기록했어요, 패턴이 잘 보이고 있어요` },
+  ];
+
+  const best = candidates.filter((c) => c.cond).sort((a, b) => b.score - a.score)[0];
+  return best?.msg || `이번 주 ${weekMeals.length}끼 기록했어요, 꾸준히 쌓아가고 있어요`;
 }
 
 function renderSettingsPage() {
@@ -1684,7 +1747,7 @@ function bindEvents() {
     });
   });
 
-  document.querySelectorAll("[data-photo-pick]").forEach((btn) => {
+  document.querySelectorAll("[data-photo-pick], [data-photo-edit]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const ctx = btn.dataset.ctx;
@@ -1717,6 +1780,37 @@ function bindEvents() {
       const ctx = btn.dataset.ctx;
       document.querySelector(`[data-photo-menu="${ctx}"]`)?.setAttribute("hidden", "");
       document.querySelector(`[data-gallery-input][data-ctx="${ctx}"]`)?.click();
+    });
+  });
+
+  document.querySelectorAll("[data-photo-replace-gallery]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ctx = btn.dataset.ctx;
+      document.querySelector(`[data-photo-menu="${ctx}"]`)?.setAttribute("hidden", "");
+      document.querySelector(`[data-replace-gallery-input][data-ctx="${ctx}"]`)?.click();
+    });
+  });
+
+  document.querySelectorAll("[data-replace-gallery-input]").forEach((input) => {
+    input.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const dataUrl = await fileToPhotoDataUrl(file);
+      const ref = await savePhotoToIndexedDB(dataUrl);
+      if (input.dataset.ctx === "editor") {
+        syncEditorFromForm();
+        const idx = editorPhotoIndex;
+        await deletePhoto(editor.photos[idx]);
+        editor.photos = editor.photos.map((p, i) => i === idx ? ref : p);
+        render();
+      } else {
+        if (!detailDraft) return;
+        syncDetailFromForm();
+        const idx = detailPhotoIndex;
+        await deletePhoto(detailDraft.photos[idx]);
+        detailDraft.photos = detailDraft.photos.map((p, i) => i === idx ? ref : p);
+        renderPreservingDetailScroll();
+      }
     });
   });
 
@@ -1801,6 +1895,7 @@ function bindEvents() {
 
   document.querySelectorAll("[data-photo-delete]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (!confirm("이 사진을 삭제할까요?")) return;
       if (btn.dataset.ctx === "editor") {
         syncEditorFromForm();
         const idx = editorPhotoIndex;
@@ -1994,30 +2089,45 @@ function renderPhotoHero(photos, ctx) {
     <div class="photo-hero">
       ${total > 0 ? `
         ${renderPhotoPreview(photos[idx])}
-        <span class="photo-counter">${total}/${maxPhotosPerMeal}</span>
         ${total > 1 ? `
+          <span class="photo-counter">${idx + 1}/${total}</span>
           <button type="button" class="photo-nav-btn photo-nav-prev" data-photo-prev data-ctx="${ctx}" ${idx === 0 ? "disabled" : ""} aria-label="이전 사진">‹</button>
           <button type="button" class="photo-nav-btn photo-nav-next" data-photo-next data-ctx="${ctx}" ${idx === total - 1 ? "disabled" : ""} aria-label="다음 사진">›</button>
         ` : ""}
-        <div class="photo-hero-actions">
-          ${canAdd ? `<button type="button" class="photo-edit-icon" data-photo-pick data-ctx="${ctx}" aria-label="사진 추가">${plusIcon()}</button>` : ""}
-          <button type="button" class="photo-edit-icon photo-delete-icon" data-photo-delete data-ctx="${ctx}" aria-label="현재 사진 삭제">${trashIcon}</button>
-        </div>
+        <button type="button" class="photo-edit-icon" data-photo-edit data-ctx="${ctx}" aria-label="사진 편집">${editIcon()}</button>
       ` : `
         <button type="button" class="photo-add-btn" data-photo-pick data-ctx="${ctx}" aria-label="사진 추가">
           <span class="photo-placeholder">${cameraIcon()}</span>
         </button>
       `}
       <div class="photo-menu" data-photo-menu="${ctx}" hidden>
-        <button type="button" class="photo-menu-item" data-photo-camera data-ctx="${ctx}">
-          <span class="photo-menu-icon">${cameraIcon()}</span>카메라로 찍기
-        </button>
-        <button type="button" class="photo-menu-item" data-photo-gallery data-ctx="${ctx}">
-          <span class="photo-menu-icon">${galleryIcon()}</span>앨범에서 선택
-        </button>
+        ${total > 0 ? `
+          ${canAdd ? `
+            <button type="button" class="photo-menu-item" data-photo-camera data-ctx="${ctx}">
+              <span class="photo-menu-icon">${cameraIcon()}</span>카메라로 추가
+            </button>
+            <button type="button" class="photo-menu-item" data-photo-gallery data-ctx="${ctx}">
+              <span class="photo-menu-icon">${galleryIcon()}</span>앨범에서 추가
+            </button>
+          ` : ""}
+          <button type="button" class="photo-menu-item" data-photo-replace-gallery data-ctx="${ctx}">
+            <span class="photo-menu-icon">${galleryIcon()}</span>변경
+          </button>
+          <button type="button" class="photo-menu-item photo-menu-delete" data-photo-delete data-ctx="${ctx}">
+            <span class="photo-menu-icon">${trashIcon}</span>삭제
+          </button>
+        ` : `
+          <button type="button" class="photo-menu-item" data-photo-camera data-ctx="${ctx}">
+            <span class="photo-menu-icon">${cameraIcon()}</span>카메라로 찍기
+          </button>
+          <button type="button" class="photo-menu-item" data-photo-gallery data-ctx="${ctx}">
+            <span class="photo-menu-icon">${galleryIcon()}</span>앨범에서 선택
+          </button>
+        `}
       </div>
       <input type="file" accept="image/*" capture="environment" data-camera-input data-ctx="${ctx}" style="display:none">
       <input type="file" accept="image/*" multiple data-gallery-input data-ctx="${ctx}" style="display:none">
+      <input type="file" accept="image/*" data-replace-gallery-input data-ctx="${ctx}" style="display:none">
     </div>
   `;
 }
