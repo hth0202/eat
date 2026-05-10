@@ -16,7 +16,8 @@ const defaultTags = [
   { id: "fruit", label: "과일", group: "care", category: "챙기기", hideInSlots: ["음료"] },
   { id: "comfortable", label: "속 편함", group: "care", category: "먹고 나서", exclusiveGroup: "stomach" },
   { id: "sleepy", label: "졸림", group: "watch", category: "먹고 나서" },
-  { id: "bloat", label: "더부룩함", group: "watch", category: "먹고 나서", exclusiveGroup: "stomach" }
+  { id: "bloat", label: "더부룩함", group: "watch", category: "먹고 나서", exclusiveGroup: "stomach" },
+  { id: "heartburn", label: "속쓰림", group: "watch", category: "먹고 나서" }
 ];
 
 const appParams = new URLSearchParams(window.location.search);
@@ -25,6 +26,7 @@ const storageKey = `kkinilog-state-v1-${appVersion}`;
 const defaultTrackedTags = ["flour", "sweet", "veg"];
 const trackedTagLimit = 5;
 const favoritesLimit = 8;
+const maxPhotosPerMeal = 5;
 const mealTitleLimit = 30;
 const mealMemoLimit = 100;
 const maxPhotoEdge = 1280;
@@ -104,7 +106,7 @@ const fullnessOptions = [
   "배 터질 것 같음"
 ];
 const carbOptions = ["없음", "적게", "보통", "많이"];
-const speedOptions = ["모르겠음", "10분 이내", "20-30분", "1시간 이상"];
+const speedOptions = ["모르겠음", "20분 이내", "30-50분 이내", "1시간 이상"];
 const trashIcon = `
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M3 6h18" />
@@ -148,6 +150,8 @@ let mealDetailId = null;
 let detailDraft = null;
 let settingsOpen = false;
 let tagEditMode = false;
+let editorPhotoIndex = 0;
+let detailPhotoIndex = 0;
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
@@ -166,10 +170,16 @@ function loadState() {
   });
 }
 
+function migrateSpeed(speed) {
+  if (speed === "10분 이내") return "20분 이내";
+  if (speed === "20-30분") return "30-50분 이내";
+  return speed;
+}
+
 function normalizeState(raw) {
   const validIds = defaultTags.map((tag) => tag.id);
   const removedIds = ["slow", "overeat", "sweet-drink"];
-  const shouldRefreshTagDefaults = raw.settingsVersion !== 4;
+  const shouldRefreshTagDefaults = raw.settingsVersion !== 5;
   const selectedTags = shouldRefreshTagDefaults
     ? validIds
     : Array.isArray(raw.selectedTags)
@@ -181,35 +191,44 @@ function normalizeState(raw) {
 
   return {
     meals: Array.isArray(raw.meals)
-        ? raw.meals.map((meal) => ({
-          ...meal,
-          title: trimMealTitle(meal.title || ""),
-          memo: trimMealMemo(meal.memo || ""),
-          createdAt: Number.isFinite(Number(meal.createdAt)) ? Number(meal.createdAt) : Date.now(),
-          tags: normalizeTags(Array.isArray(meal.tags) ? meal.tags.filter((id) => validIds.includes(id) && !removedIds.includes(id)) : []),
-          fullness: fullnessOptions.includes(meal.fullness) ? meal.fullness : "적당함",
-          carbs: carbOptions.includes(meal.carbs) ? meal.carbs : "보통",
-          speed: speedOptions.includes(meal.speed) ? meal.speed : "모르겠음"
-        }))
+        ? raw.meals.map((meal) => {
+          const ms = migrateSpeed(meal.speed);
+          const rawPhotos = Array.isArray(meal.photos) ? meal.photos : (meal.photo ? [meal.photo] : []);
+          const { photo: _p, photos: _ph, ...mealRest } = meal;
+          return {
+            ...mealRest,
+            title: trimMealTitle(meal.title || ""),
+            memo: trimMealMemo(meal.memo || ""),
+            createdAt: Number.isFinite(Number(meal.createdAt)) ? Number(meal.createdAt) : Date.now(),
+            tags: normalizeTags(Array.isArray(meal.tags) ? meal.tags.filter((id) => validIds.includes(id) && !removedIds.includes(id)) : []),
+            fullness: fullnessOptions.includes(meal.fullness) ? meal.fullness : "적당함",
+            carbs: carbOptions.includes(meal.carbs) ? meal.carbs : "보통",
+            speed: speedOptions.includes(ms) ? ms : "모르겠음",
+            photos: rawPhotos.filter(p => typeof p === "string" && p).slice(0, maxPhotosPerMeal)
+          };
+        })
       : [],
     selectedTags: selectedTags.length ? selectedTags : validIds,
     trackedTags: (trackedTags.length ? trackedTags : defaultTrackedTags).slice(0, trackedTagLimit),
     favorites: Array.isArray(raw.favorites)
-      ? raw.favorites.map((f) => ({
-          id: typeof f.id === "string" ? f.id : crypto.randomUUID(),
-          fromMealId: typeof f.fromMealId === "string" ? f.fromMealId : null,
-          name: String(f.name || f.title || "").slice(0, 30).trim(),
-          slot: mealSlots.includes(f.slot) ? f.slot : "점심",
-          title: trimMealTitle(f.title || ""),
-          tags: normalizeTags((Array.isArray(f.tags) ? f.tags : []).filter((id) => validIds.includes(id) && !removedIds.includes(id))),
-          fullness: fullnessOptions.includes(f.fullness) ? f.fullness : "적당함",
-          carbs: carbOptions.includes(f.carbs) ? f.carbs : "보통",
-          speed: speedOptions.includes(f.speed) ? f.speed : "모르겠음",
-          memo: trimMealMemo(f.memo || ""),
-          lastUsedAt: Number.isFinite(Number(f.lastUsedAt)) ? Number(f.lastUsedAt) : Date.now()
-        }))
+      ? raw.favorites.map((f) => {
+          const ms = migrateSpeed(f.speed);
+          return {
+            id: typeof f.id === "string" ? f.id : crypto.randomUUID(),
+            fromMealId: typeof f.fromMealId === "string" ? f.fromMealId : null,
+            name: String(f.name || f.title || "").slice(0, 30).trim(),
+            slot: mealSlots.includes(f.slot) ? f.slot : "점심",
+            title: trimMealTitle(f.title || ""),
+            tags: normalizeTags((Array.isArray(f.tags) ? f.tags : []).filter((id) => validIds.includes(id) && !removedIds.includes(id))),
+            fullness: fullnessOptions.includes(f.fullness) ? f.fullness : "적당함",
+            carbs: carbOptions.includes(f.carbs) ? f.carbs : "보통",
+            speed: speedOptions.includes(ms) ? ms : "모르겠음",
+            memo: trimMealMemo(f.memo || ""),
+            lastUsedAt: Number.isFinite(Number(f.lastUsedAt)) ? Number(f.lastUsedAt) : Date.now()
+          };
+        })
       : [],
-    settingsVersion: 4
+    settingsVersion: 5
   };
 }
 
@@ -601,6 +620,7 @@ function renderEmptyTodayCta() {
     <button class="empty-today-cta" data-open-editor>
       <strong>오늘 첫 끼니를 기록해봐요</strong>
       <small>뭐 드셨어요? 간단하게 적어도 충분해요</small>
+      <span class="empty-today-cta-btn">끼니 입력하기</span>
     </button>
   `;
 }
@@ -755,7 +775,7 @@ function renderMealDetail() {
         </div>
 
         <div class="sheet-body detail-body">
-          ${renderPhotoHero(detailDraft.photo, "detail")}
+          ${renderPhotoHero(detailDraft.photos, "detail")}
 
           <div class="detail-card">
             <label class="detail-label">끼니</label>
@@ -881,7 +901,7 @@ function getWeekHighlights(weekMeals, weekCounts, streak) {
     highlights.push({ type: "watch", text: `배달을 이번 주 ${deliveryCount}번 했어요` });
   }
 
-  const fastCount = weekMeals.filter((m) => m.speed === "10분 이내").length;
+  const fastCount = weekMeals.filter((m) => m.speed === "20분 이내").length;
   if (fastCount >= 4) {
     highlights.push({ type: "watch", text: `빠르게 먹은 끼니가 ${fastCount}번이에요` });
   }
@@ -915,7 +935,7 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
 
   const highCarbCount = meals.filter((meal) => meal.carbs === "많이").length;
   const highFullnessCount = meals.filter((meal) => ["적당에서 약간 배부름", "배 터질 것 같음"].includes(meal.fullness)).length;
-  const fastMealCount = meals.filter((meal) => meal.speed === "10분 이내").length;
+  const fastMealCount = meals.filter((meal) => meal.speed === "20분 이내").length;
   const slowMealCount = meals.filter((meal) => meal.speed === "1시간 이상").length;
   const lightFullnessCount = meals.filter((meal) => meal.fullness === "가볍게 먹음").length;
   const balancedFullnessCount = meals.filter((meal) => meal.fullness === "적당함").length;
@@ -1007,7 +1027,7 @@ function renderFlow() {
   const monthMeals = recentMeals(30);
 const weekCounts = countTags(weekMeals);
   const weekHighCarbCount = weekMeals.filter((meal) => meal.carbs === "많이").length;
-  const weekFastMealCount = weekMeals.filter((meal) => meal.speed === "10분 이내").length;
+  const weekFastMealCount = weekMeals.filter((meal) => meal.speed === "20분 이내").length;
   const weekBalancedFullnessCount = weekMeals.filter((meal) => meal.fullness === "적당함").length;
   const streak = getStreakDays();
   const highlights = getWeekHighlights(weekMeals, weekCounts, streak);
@@ -1042,7 +1062,7 @@ const weekCounts = countTags(weekMeals);
         </div>
         <div class="metric">
           <strong>${weekFastMealCount}</strong>
-          <span>10분 이내 식사</span>
+          <span>20분 이내 식사</span>
         </div>
         <div class="metric">
           <strong>${weekBalancedFullnessCount}</strong>
@@ -1145,7 +1165,7 @@ function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     return "첫 끼니를 기록하면 이번 주 패턴을 같이 살펴볼게요";
   }
 
-  const weekFastCount = weekMeals.filter((m) => m.speed === "10분 이내").length;
+  const weekFastCount = weekMeals.filter((m) => m.speed === "20분 이내").length;
   const weekDeliveryCount = counts.delivery || 0;
   const weekVegCount = counts.veg || 0;
   const weekProteinCount = counts.protein || 0;
@@ -1314,14 +1334,20 @@ function emptyDraft(slot = recommendedSlot()) {
     carbs: "보통",
     speed: "모르겠음",
     memo: "",
-    photo: ""
+    photos: []
   };
 }
 
 function recommendedSlot() {
-  const taken = new Set(mealsForDate(viewedDate).map((m) => m.slot));
-  for (const slot of ["아침", "점심", "저녁"]) {
-    if (!taken.has(slot)) return slot;
+  const meals = mealsForDate(viewedDate);
+  const mainSlots = ["아침", "점심", "저녁"];
+  const takenMain = new Set(meals.filter(m => mainSlots.includes(m.slot)).map(m => m.slot));
+  let lastIdx = -1;
+  for (let i = 0; i < mainSlots.length; i++) {
+    if (takenMain.has(mainSlots[i])) lastIdx = i;
+  }
+  for (let i = lastIdx + 1; i < mainSlots.length; i++) {
+    if (!takenMain.has(mainSlots[i])) return mainSlots[i];
   }
   return "간식";
 }
@@ -1359,7 +1385,7 @@ function renderEditor() {
           </div>
         </div>` : ""}
 
-        ${renderPhotoHero(editor.photo, "editor")}
+        ${renderPhotoHero(editor.photos, "editor")}
 
         <div class="field">
           <label>끼니</label>
@@ -1526,6 +1552,7 @@ function bindEvents() {
       const slot = availableSlot(button.dataset.openEditor || undefined, null, viewedDate);
       if (!slot) return;
       editor = emptyDraft(slot);
+      editorPhotoIndex = 0;
       render();
     });
   });
@@ -1535,6 +1562,7 @@ function bindEvents() {
       mealDetailId = button.dataset.viewMeal;
       const meal = state.meals.find((item) => item.id === mealDetailId);
       detailDraft = meal ? structuredClone(meal) : null;
+      detailPhotoIndex = 0;
       render();
     });
   });
@@ -1692,6 +1720,30 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll("[data-photo-prev]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.ctx === "editor") {
+        editorPhotoIndex = Math.max(0, editorPhotoIndex - 1);
+        render();
+      } else {
+        detailPhotoIndex = Math.max(0, detailPhotoIndex - 1);
+        renderPreservingDetailScroll();
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-photo-next]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.ctx === "editor") {
+        editorPhotoIndex = Math.min((editor?.photos?.length || 1) - 1, editorPhotoIndex + 1);
+        render();
+      } else {
+        detailPhotoIndex = Math.min((detailDraft?.photos?.length || 1) - 1, detailPhotoIndex + 1);
+        renderPreservingDetailScroll();
+      }
+    });
+  });
+
   document.querySelectorAll("[data-camera-input]").forEach((input) => {
     input.addEventListener("change", async (event) => {
       const file = event.target.files?.[0];
@@ -1701,11 +1753,17 @@ function bindEvents() {
       const ref = await savePhotoToIndexedDB(dataUrl);
       if (input.dataset.ctx === "editor") {
         syncEditorFromForm();
-        editor.photo = ref;
+        if (editor.photos.length < maxPhotosPerMeal) {
+          editor.photos = [...editor.photos, ref];
+          editorPhotoIndex = editor.photos.length - 1;
+        }
         render();
       } else {
         syncDetailFromForm();
-        if (detailDraft) detailDraft.photo = ref;
+        if (detailDraft && detailDraft.photos.length < maxPhotosPerMeal) {
+          detailDraft.photos = [...detailDraft.photos, ref];
+          detailPhotoIndex = detailDraft.photos.length - 1;
+        }
         renderPreservingDetailScroll();
       }
     });
@@ -1713,17 +1771,29 @@ function bindEvents() {
 
   document.querySelectorAll("[data-gallery-input]").forEach((input) => {
     input.addEventListener("change", async (event) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      const dataUrl = await fileToPhotoDataUrl(file);
-      const ref = await savePhotoToIndexedDB(dataUrl);
-      if (input.dataset.ctx === "editor") {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      const ctx = input.dataset.ctx;
+      const currentPhotos = ctx === "editor" ? editor.photos : (detailDraft?.photos || []);
+      const slots = maxPhotosPerMeal - currentPhotos.length;
+      if (slots <= 0) return;
+      const refs = await Promise.all(files.slice(0, slots).map(async (file) => {
+        const dataUrl = await fileToPhotoDataUrl(file);
+        return savePhotoToIndexedDB(dataUrl);
+      }));
+      if (ctx === "editor") {
         syncEditorFromForm();
-        editor.photo = ref;
+        const prevLen = editor.photos.length;
+        editor.photos = [...editor.photos, ...refs];
+        editorPhotoIndex = prevLen;
         render();
       } else {
         syncDetailFromForm();
-        if (detailDraft) detailDraft.photo = ref;
+        if (detailDraft) {
+          const prevLen = detailDraft.photos.length;
+          detailDraft.photos = [...detailDraft.photos, ...refs];
+          detailPhotoIndex = prevLen;
+        }
         renderPreservingDetailScroll();
       }
     });
@@ -1733,14 +1803,18 @@ function bindEvents() {
     btn.addEventListener("click", async () => {
       if (btn.dataset.ctx === "editor") {
         syncEditorFromForm();
-        await deletePhoto(editor.photo);
-        editor.photo = "";
+        const idx = editorPhotoIndex;
+        await deletePhoto(editor.photos[idx]);
+        editor.photos = editor.photos.filter((_, i) => i !== idx);
+        editorPhotoIndex = Math.max(0, Math.min(idx, editor.photos.length - 1));
         render();
       } else {
         if (!detailDraft) return;
         syncDetailFromForm();
-        await deletePhoto(detailDraft.photo);
-        detailDraft.photo = "";
+        const idx = detailPhotoIndex;
+        await deletePhoto(detailDraft.photos[idx]);
+        detailDraft.photos = detailDraft.photos.filter((_, i) => i !== idx);
+        detailPhotoIndex = Math.max(0, Math.min(idx, detailDraft.photos.length - 1));
         renderPreservingDetailScroll();
       }
     });
@@ -1846,6 +1920,7 @@ function bindEvents() {
       const fav = state.favorites.find((f) => f.id === id);
       if (!fav) return;
       editor = draftFromFavorite(fav);
+      editorPhotoIndex = 0;
       settingsOpen = false;
       render();
     });
@@ -1910,16 +1985,29 @@ function renderPhotoPreview(photo) {
     : `<span class="photo-placeholder">${plusIcon()}</span>`;
 }
 
-function renderPhotoHero(photo, ctx) {
+function renderPhotoHero(photos, ctx) {
+  const total = photos.length;
+  const canAdd = total < maxPhotosPerMeal;
+  const idx = total > 0 ? Math.max(0, Math.min(ctx === "editor" ? editorPhotoIndex : detailPhotoIndex, total - 1)) : 0;
+
   return `
     <div class="photo-hero">
-      ${photo
-        ? `${renderPhotoPreview(photo)}
-           <button type="button" class="photo-edit-icon" data-photo-pick data-ctx="${ctx}" aria-label="사진 수정">${editIcon()}</button>`
-        : `<button type="button" class="photo-add-btn" data-photo-pick data-ctx="${ctx}" aria-label="사진 추가">
-             <span class="photo-placeholder">${cameraIcon()}</span>
-           </button>`
-      }
+      ${total > 0 ? `
+        ${renderPhotoPreview(photos[idx])}
+        <span class="photo-counter">${total}/${maxPhotosPerMeal}</span>
+        ${total > 1 ? `
+          <button type="button" class="photo-nav-btn photo-nav-prev" data-photo-prev data-ctx="${ctx}" ${idx === 0 ? "disabled" : ""} aria-label="이전 사진">‹</button>
+          <button type="button" class="photo-nav-btn photo-nav-next" data-photo-next data-ctx="${ctx}" ${idx === total - 1 ? "disabled" : ""} aria-label="다음 사진">›</button>
+        ` : ""}
+        <div class="photo-hero-actions">
+          ${canAdd ? `<button type="button" class="photo-edit-icon" data-photo-pick data-ctx="${ctx}" aria-label="사진 추가">${plusIcon()}</button>` : ""}
+          <button type="button" class="photo-edit-icon photo-delete-icon" data-photo-delete data-ctx="${ctx}" aria-label="현재 사진 삭제">${trashIcon}</button>
+        </div>
+      ` : `
+        <button type="button" class="photo-add-btn" data-photo-pick data-ctx="${ctx}" aria-label="사진 추가">
+          <span class="photo-placeholder">${cameraIcon()}</span>
+        </button>
+      `}
       <div class="photo-menu" data-photo-menu="${ctx}" hidden>
         <button type="button" class="photo-menu-item" data-photo-camera data-ctx="${ctx}">
           <span class="photo-menu-icon">${cameraIcon()}</span>카메라로 찍기
@@ -1927,10 +2015,9 @@ function renderPhotoHero(photo, ctx) {
         <button type="button" class="photo-menu-item" data-photo-gallery data-ctx="${ctx}">
           <span class="photo-menu-icon">${galleryIcon()}</span>앨범에서 선택
         </button>
-        ${photo ? `<button type="button" class="photo-menu-item photo-menu-delete" data-photo-delete data-ctx="${ctx}">삭제</button>` : ""}
       </div>
       <input type="file" accept="image/*" capture="environment" data-camera-input data-ctx="${ctx}" style="display:none">
-      <input type="file" accept="image/*" data-gallery-input data-ctx="${ctx}" style="display:none">
+      <input type="file" accept="image/*" multiple data-gallery-input data-ctx="${ctx}" style="display:none">
     </div>
   `;
 }
@@ -2051,13 +2138,12 @@ async function deletePhoto(ref) {
 async function migratePhotosToIndexedDB() {
   let changed = false;
   for (const meal of state.meals) {
-    if (meal.photo && meal.photo.startsWith("data:")) {
-      const id = crypto.randomUUID();
-      const ref = `idb:${id}`;
-      await photoDB.put(id, meal.photo);
-      photoCache.set(ref, meal.photo);
-      meal.photo = ref;
-      changed = true;
+    for (let i = 0; i < meal.photos.length; i++) {
+      if (meal.photos[i] && meal.photos[i].startsWith("data:")) {
+        const ref = await savePhotoToIndexedDB(meal.photos[i]);
+        meal.photos[i] = ref;
+        changed = true;
+      }
     }
   }
   if (changed) saveState();
@@ -2065,10 +2151,12 @@ async function migratePhotosToIndexedDB() {
 
 async function loadPhotoCache() {
   for (const meal of state.meals) {
-    if (meal.photo && meal.photo.startsWith("idb:") && !photoCache.has(meal.photo)) {
-      const id = meal.photo.slice(4);
-      const dataUrl = await photoDB.get(id);
-      if (dataUrl) photoCache.set(meal.photo, dataUrl);
+    for (const photo of meal.photos) {
+      if (photo && photo.startsWith("idb:") && !photoCache.has(photo)) {
+        const id = photo.slice(4);
+        const dataUrl = await photoDB.get(id);
+        if (dataUrl) photoCache.set(photo, dataUrl);
+      }
     }
   }
 }
@@ -2086,7 +2174,7 @@ function draftFromFavorite(fav) {
     carbs: fav.carbs,
     speed: fav.speed,
     memo: fav.memo,
-    photo: ""
+    photos: []
   };
 }
 
