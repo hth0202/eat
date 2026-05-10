@@ -985,25 +985,25 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
 
     // 행동 경고 (230–430)
     { score: 430 + s.bingeCount * 20 + s.fastCount * 10, cond: s.bingeCount > 0 && s.fastCount > 0,
-      msg: "빨리 먹고 많이 먹은 끼니가 있었어요, 천천히 먹으면 포만감이 더 잘 느껴져요" },
+      msg: "빠르게 먹고 과식도 했네요, 천천히 먹으면 포만감이 더 잘 느껴져요" },
     { score: 400 + s.bingeCount * 20, cond: s.bingeCount > 0,
       msg: "많이 먹은 끼니가 있었어요, 다음엔 한 박자 느리게요" },
     { score: 370 + s.deliveryCount * 20, cond: s.deliveryCount >= s.mealCount && s.mealCount >= 2,
-      msg: "오늘 끼니를 모두 배달로 했어요, 내일은 간단하게 직접 챙겨봐요" },
+      msg: "오늘 끼니를 모두 배달로 했어요, 내일은 집밥 어때요?" },
     { score: 350 + s.deliveryCount * 20, cond: s.deliveryCount >= 2,
       msg: "배달을 자주 했어요, 다음 끼니는 집밥 어때요?" },
     { score: 330 + s.sodiumCount * 20, cond: s.sodiumCount >= 2,
       msg: "짠 게 좀 많았네요, 물을 조금 더 마셔봐요" },
     { score: 310 + s.highCarbCount * 20, cond: s.highCarbCount >= 2 && s.vegCount === 0 && s.proteinCount === 0,
-      msg: "탄수화물이 많은 편이었어요, 채소나 단백질을 곁들이면 균형이 잡혀요" },
+      msg: "탄수화물이 많은 편이었어요, 채소나 단백질을 곁들이면 더 좋아요" },
     { score: 290 + s.highCarbCount * 20, cond: s.highCarbCount >= 2,
       msg: "탄수화물이 좀 많았어요, 다음엔 채소나 단백질을 곁들여봐요" },
     { score: 270 + s.fastCount * 10 + s.highCarbCount * 10, cond: s.fastCount >= 1 && s.highCarbCount >= 1,
       msg: "빠르게 먹고 탄수화물도 많았어요, 천천히 먹으면 포만감이 더 잘 느껴져요" },
     { score: 260 + s.highFullnessCount * 15, cond: s.highFullnessCount >= 2,
-      msg: "포만감이 높은 끼니가 여러 번이에요, 다음엔 한 단계 가볍게요" },
+      msg: "포만감이 높은 끼니가 여러 번이에요, 다음엔 조금 가볍게 먹어봐요" },
     { score: 250 + s.fastCount * 15, cond: s.fastCount >= 2,
-      msg: "빨리 먹은 끼니가 여러 번이에요, 다음엔 조금 천천히요" },
+      msg: "빨리 먹은 끼니가 여러 번이에요, 다음엔 조금 천천히 먹어봐요" },
     { score: 240, cond: s.lowCount > 0 && s.vegCount === 0 && s.proteinCount === 0,
       msg: "식사량이 부족했을 수 있어요, 채소나 단백질을 더 챙겨봐요" },
     { score: 230, cond: s.sweetCount > 0 && s.homeCount === 0,
@@ -1020,13 +1020,13 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
       msg: "천천히 먹은 끼니가 있었어요, 좋은 습관이에요" },
     { score: 160 + s.vegCount * 10 + s.proteinCount * 10,
       cond: s.vegCount > 0 && s.proteinCount > 0 && s.highCarbCount === 0,
-      msg: "채소, 단백질, 탄수까지 균형 있게 챙겼어요" },
+      msg: "채소, 단백질, 탄수화물까지 균형 있게 챙겼어요" },
     { score: 150 + s.vegCount * 10 + s.proteinCount * 10,
       cond: s.vegCount > 0 && s.proteinCount > 0,
       msg: "채소와 단백질을 모두 챙겼어요" },
     { score: 140 + s.comfortableCount * 15 + s.balancedCount * 10,
       cond: s.comfortableCount > 0 && s.balancedCount > 0,
-      msg: "속도 편하고 포만감도 좋았어요, 오늘 식사 패턴을 기억해둬요" },
+      msg: "속도 편하고 포만감도 좋았어요, 이런 날이 계속되면 좋겠어요" },
     { score: 130 + s.comfortableCount * 15, cond: s.comfortableCount > 0,
       msg: "속이 편한 하루였네요" },
     { score: 120 + s.vegCount * 5 + s.proteinCount * 5,
@@ -1043,7 +1043,7 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
   ];
 
   const best = candidates.filter((c) => c.cond).sort((a, b) => b.score - a.score)[0];
-  return best?.msg || "먹고 나서 느낌도 메모에 남겨봐요";
+  return best?.msg || "먹고 나서 느낌을 메모에 남겨봐요";
 }
 
 function renderFlow() {
@@ -1225,7 +1225,7 @@ function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
   const candidates = [
     // 연속 기록 마일스톤 (800+)
     { score: 870 + s.streak, cond: s.streak >= 21,
-      msg: `${s.streak}일 연속이에요, 식습관의 흐름이 잘 보이기 시작했을 거예요` },
+      msg: `${s.streak}일 연속이에요, 이 정도면 식습관 흐름이 눈에 보일 거예요` },
     { score: 820 + s.streak, cond: s.streak >= 14,
       msg: `${s.streak}일 연속 기록이에요, 이 정도면 패턴이 꽤 보일 거예요` },
 
@@ -1235,7 +1235,7 @@ function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     { score: 640 + s.heartburnCount * 20, cond: s.heartburnCount >= 2,
       msg: `속쓰림이 두 번 있었어요, 어떤 메뉴 후에 나타나는지 살펴봐요` },
     { score: 620 + s.bloatCount * 10 + s.fastCount * 10, cond: s.bloatCount >= 3 && s.fastCount >= 3,
-      msg: `더부룩함과 빠른 식사가 겹치고 있어요, 천천히 먹으면 속이 나아질 수 있어요` },
+      msg: `이번 주 더부룩함과 빠른 식사가 함께 나타났어요, 천천히 먹으면 속이 나아질 수 있어요` },
     { score: 600 + s.bloatCount * 15, cond: s.bloatCount >= 3,
       msg: `더부룩함이 이번 주 ${s.bloatCount}번이에요, 어떤 끼니 후에 나타나는지 살펴봐요` },
     { score: 560, cond: s.bloatCount >= 2,
@@ -1251,7 +1251,7 @@ function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     { score: 420, cond: s.sodiumCount >= 2,
       msg: `짠 음식이 이번 주 두세 번 있었어요, 물을 조금 더 챙겨봐요` },
     { score: 400 + s.fastCount * 15, cond: s.fastCount >= 5,
-      msg: `이번 주 거의 매 끼니를 빠르게 먹었어요, 한 끼라도 천천히 먹는 날을 만들어봐요` },
+      msg: `이번 주 거의 매 끼니를 빠르게 먹었어요, 한 끼라도 천천히 먹어봐요` },
     { score: 370 + s.fastCount * 15, cond: s.fastCount >= 3,
       msg: `이번 주 ${s.fastCount}끼를 빠르게 먹었어요, 천천히 먹으면 포만감이 더 잘 느껴져요` },
     { score: 350 + s.lateCount * 15, cond: s.lateCount >= 4,
@@ -1269,11 +1269,11 @@ function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     { score: 240 + s.proteinCount * 10, cond: s.proteinCount >= 4,
       msg: `단백질을 이번 주 ${s.proteinCount}번 챙겼어요, 채소도 한 끼라도 곁들여봐요` },
     { score: 230 + s.balancedCount * 10, cond: s.balancedCount >= 6,
-      msg: `포만감 조절이 아주 잘 되고 있어요, 이번 주 식사 패턴 그대로 유지해봐요` },
+      msg: `포만감 조절이 아주 잘 됐어요, 다음 주에도 이 패턴 그대로 가봐요` },
     { score: 210 + s.balancedCount * 10, cond: s.balancedCount >= 4,
       msg: `포만감이 적당했던 끼니가 ${s.balancedCount}번이에요, 식사 조절이 잘 되고 있어요` },
     { score: 190 + s.comfortableCount * 10, cond: s.comfortableCount >= 3,
-      msg: `속이 편한 끼니가 이번 주 ${s.comfortableCount}번이에요, 무엇이 달랐는지 메모를 살펴봐요` },
+      msg: `속이 편한 끼니가 이번 주 ${s.comfortableCount}번이에요, 어떤 끼니였는지 메모를 돌아봐요` },
 
     // 채소 0회 경고
     { score: 170, cond: s.vegCount === 0 && s.mealCount >= 5,
@@ -2091,8 +2091,8 @@ function renderPhotoHero(photos, ctx) {
         ${renderPhotoPreview(photos[idx])}
         ${total > 1 ? `
           <span class="photo-counter">${idx + 1}/${total}</span>
-          <button type="button" class="photo-nav-btn photo-nav-prev" data-photo-prev data-ctx="${ctx}" ${idx === 0 ? "disabled" : ""} aria-label="이전 사진">‹</button>
-          <button type="button" class="photo-nav-btn photo-nav-next" data-photo-next data-ctx="${ctx}" ${idx === total - 1 ? "disabled" : ""} aria-label="다음 사진">›</button>
+          <button type="button" class="photo-nav-btn photo-nav-prev" data-photo-prev data-ctx="${ctx}" ${idx === 0 ? "disabled" : ""} aria-label="이전 사진"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button type="button" class="photo-nav-btn photo-nav-next" data-photo-next data-ctx="${ctx}" ${idx === total - 1 ? "disabled" : ""} aria-label="다음 사진"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
         ` : ""}
         <button type="button" class="photo-edit-icon" data-photo-edit data-ctx="${ctx}" aria-label="사진 편집">${editIcon()}</button>
       ` : `
@@ -2103,11 +2103,8 @@ function renderPhotoHero(photos, ctx) {
       <div class="photo-menu" data-photo-menu="${ctx}" hidden>
         ${total > 0 ? `
           ${canAdd ? `
-            <button type="button" class="photo-menu-item" data-photo-camera data-ctx="${ctx}">
-              <span class="photo-menu-icon">${cameraIcon()}</span>카메라로 추가
-            </button>
             <button type="button" class="photo-menu-item" data-photo-gallery data-ctx="${ctx}">
-              <span class="photo-menu-icon">${galleryIcon()}</span>앨범에서 추가
+              <span class="photo-menu-icon">${plusIcon()}</span>추가
             </button>
           ` : ""}
           <button type="button" class="photo-menu-item" data-photo-replace-gallery data-ctx="${ctx}">
