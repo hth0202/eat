@@ -32,6 +32,7 @@ const mealMemoLimit = 100;
 const maxPhotoEdge = 1280;
 const photoQuality = 0.82;
 const repeatableMealSlots = ["간식", "음료"];
+const conditionNoteLimit = 50;
 
 firebase.initializeApp({
   apiKey: "AIzaSyBY_c_z6l6uY8GY_ehbRDF9LJ4hXMIoH6s",
@@ -152,6 +153,9 @@ let settingsOpen = false;
 let tagEditMode = false;
 let editorPhotoIndex = 0;
 let detailPhotoIndex = 0;
+let conditionSheetOpen = false;
+let conditionSheetDate = null;
+let conditionSheetSelectedMood = null;
 
 function loadState() {
   const saved = localStorage.getItem(storageKey);
@@ -228,7 +232,21 @@ function normalizeState(raw) {
           };
         })
       : [],
-    settingsVersion: 5
+    settingsVersion: 5,
+    dailyNotes: (raw.dailyNotes && typeof raw.dailyNotes === 'object' && !Array.isArray(raw.dailyNotes))
+      ? Object.fromEntries(
+          Object.entries(raw.dailyNotes)
+            .filter(([k, v]) => typeof k === 'string' && v && typeof v === 'object' && ["good", "ok", "bad"].includes(v.mood))
+            .map(([k, v]) => [k, {
+              mood: v.mood,
+              memo: typeof v.memo === 'string' ? Array.from(v.memo).slice(0, conditionNoteLimit).join('') : ''
+            }])
+        )
+      : {},
+    conditionPromptHour: (Number.isInteger(raw.conditionPromptHour) && raw.conditionPromptHour >= 0 && raw.conditionPromptHour <= 23)
+      ? raw.conditionPromptHour : 6,
+    lastConditionSkippedDate: typeof raw.lastConditionSkippedDate === 'string'
+      ? raw.lastConditionSkippedDate : null
   };
 }
 
@@ -275,6 +293,14 @@ function josa(word, type) {
     case "으로/로": return hasFinal ? "으로" : "로";
     default: return "";
   }
+}
+
+function renderChip(tag, { active = false, attrs = "", disabled = false } = {}) {
+  const cls = `chip ${tag.group}${active ? " active" : ""}`;
+  if (disabled) {
+    return `<span class="${cls}">${tag.label}</span>`;
+  }
+  return `<button type="button" class="${cls}" ${attrs}>${tag.label}</button>`;
 }
 
 function applyTagToggle(currentTags, id, forceAdd = false) {
@@ -395,6 +421,29 @@ function recentMeals(days) {
   start.setDate(start.getDate() - (days - 1));
   start.setHours(0, 0, 0, 0);
   return state.meals.filter((meal) => dateFromKey(meal.date) >= start);
+}
+
+function thisWeekStart() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay();
+  today.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+  return formatDateKey(today);
+}
+
+function thisWeekMeals() {
+  const startKey = thisWeekStart();
+  const endKey = todayKey();
+  return state.meals.filter((m) => m.date >= startKey && m.date <= endKey);
+}
+
+function thisWeekDateKeys() {
+  const startKey = thisWeekStart();
+  const endKey = todayKey();
+  const keys = [];
+  let cur = startKey;
+  while (cur <= endKey) { keys.push(cur); cur = addDays(cur, 1); }
+  return keys;
 }
 
 function classForTag(tag) {
@@ -570,6 +619,7 @@ function render() {
       ${renderTabs()}
       ${editor ? renderEditor() : ""}
       ${mealDetailId ? renderMealDetail() : ""}
+      ${conditionSheetOpen ? renderConditionSheet() : ""}
     `;
   }
 
@@ -577,12 +627,88 @@ function render() {
   bindEvents();
 }
 
+function shouldShowConditionSheet() {
+  const today = todayKey();
+  if ((state.dailyNotes || {})[today]?.mood) return false;
+  if (state.lastConditionSkippedDate === today) return false;
+  const kstNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  return kstNow.getHours() >= (state.conditionPromptHour ?? 6);
+}
+
+function checkConditionPrompt() {
+  if (conditionSheetOpen) return;
+  if (!shouldShowConditionSheet()) return;
+  conditionSheetOpen = true;
+  conditionSheetDate = todayKey();
+  conditionSheetSelectedMood = null;
+  render();
+}
+
+const conditionMoodConfig = [
+  { id: "good", face: "😊", label: "좋음", colorClass: "good" },
+  { id: "ok",   face: "😐", label: "보통", colorClass: "ok" },
+  { id: "bad",  face: "😞", label: "나쁨", colorClass: "bad" },
+];
+
+function renderConditionBar(dateKey) {
+  const note = (state.dailyNotes || {})[dateKey];
+  if (note?.mood) {
+    const cfg = conditionMoodConfig.find((c) => c.id === note.mood);
+    return `
+      <button class="condition-bar condition-bar--${note.mood}" data-open-condition-sheet aria-label="컨디션 수정">
+        <span class="condition-bar-face">${cfg.face}</span>
+        <span class="condition-bar-body">
+          <span class="condition-bar-mood">${cfg.label}</span>
+          ${note.memo ? `<span class="condition-bar-memo">${escapeHtml(note.memo)}</span>` : ""}
+        </span>
+        <span class="condition-bar-edit">수정</span>
+      </button>
+    `;
+  }
+  if (isToday(dateKey)) {
+    return `
+      <button class="condition-bar condition-bar--empty" data-open-condition-sheet aria-label="오늘 컨디션 기록">
+        <span class="condition-bar-face">🌅</span>
+        <span>오늘 컨디션을 기록해봐요</span>
+      </button>
+    `;
+  }
+  return "";
+}
+
+function renderConditionSheet() {
+  const dateKey = conditionSheetDate || todayKey();
+  const existing = (state.dailyNotes || {})[dateKey];
+  const isEdit = !!existing?.mood;
+  const existingMemo = existing?.memo || "";
+  return `
+    <div class="condition-sheet-backdrop" data-close-condition-sheet></div>
+    <div class="condition-sheet" role="dialog" aria-modal="true" aria-label="컨디션 기록">
+      <div class="condition-sheet-handle"></div>
+      <p class="condition-sheet-title">오늘 컨디션은요?</p>
+      <div class="condition-mood-row">
+        ${conditionMoodConfig.map((cfg) => `
+          <button class="condition-mood-btn${conditionSheetSelectedMood === cfg.id ? " selected" : ""}" data-mood="${cfg.id}" aria-label="${cfg.label}">
+            <span class="condition-face">${cfg.face}</span>
+            <span class="condition-face-label">${cfg.label}</span>
+          </button>
+        `).join("")}
+      </div>
+      <textarea class="condition-sheet-memo" id="condition-sheet-memo" maxlength="${conditionNoteLimit}" placeholder="한 줄 메모 (선택)">${escapeHtml(existingMemo)}</textarea>
+      <div class="condition-sheet-actions">
+        ${isEdit
+          ? `<button class="condition-sheet-cancel" data-close-condition-sheet>취소</button>`
+          : `<button class="condition-sheet-skip" data-skip-condition>건너뛰기</button>`
+        }
+        <button class="condition-sheet-save" data-save-condition-sheet${conditionSheetSelectedMood ? "" : " disabled"}>저장</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderToday() {
   const meals = mealsForDate(viewedDate);
   const counts = countTags(meals);
-  const trackedTodayTags = state.trackedTags
-    .map(tagById)
-    .filter(Boolean);
   const viewedDateLabel = formatHomeDate(viewedDate);
   const previousDate = addDays(viewedDate, -1);
   const nextDate = addDays(viewedDate, 1);
@@ -600,30 +726,34 @@ function renderToday() {
       ${datePickerOpen ? renderDatePicker() : ""}
     </section>
 
+    ${renderConditionBar(viewedDate)}
     <div class="insight-bar">${todayInsight(meals, counts, dayCopy)}</div>
 
     <section class="section">
       ${meals.length ? `<div class="meal-list">${meals.map(renderMealCard).join("")}</div>${renderAddMealCta()}` : renderEmptyTodayCta()}
     </section>
 
-    ${trackedTodayTags.length ? `
+    ${meals.length ? (() => {
+      const topTags = Object.entries(counts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 6)
+        .map(([id, count]) => ({ tag: tagById(id), count }))
+        .filter(({ tag }) => tag);
+      return topTags.length ? `
     <section class="section">
       <div class="section-head">
         <h2 class="section-title">${dayCopy}의 기록</h2>
       </div>
       <div class="overview-grid">
-        ${trackedTodayTags
-          .map(
-            (tag) => `
-              <div class="metric">
-                <strong>${counts[tag.id] || 0}</strong>
-                <span>${tag.label}</span>
-              </div>
-            `
-          )
-          .join("")}
+        ${topTags.map(({ tag, count }) => `
+          <div class="metric">
+            <strong>${count}</strong>
+            <span>${tag.label}</span>
+          </div>
+        `).join("")}
       </div>
-    </section>` : ""}
+    </section>` : "";
+    })() : ""}
 
   `;
 }
@@ -817,13 +947,7 @@ function renderMealDetail() {
                       <div class="chip-grid">
                         ${detailTags
                           .filter((tag) => tag.category === category)
-                          .map(
-                            (tag) => `
-                              <button type="button" class="chip ${tag.group} ${detailDraft.tags.includes(tag.id) ? "active" : ""}" data-detail-tag="${tag.id}">
-                                ${tag.label}
-                              </button>
-                            `
-                          )
+                          .map((tag) => renderChip(tag, { active: detailDraft.tags.includes(tag.id), attrs: `data-detail-tag="${tag.id}"` }))
                           .join("")}
                       </div>
                     </div>
@@ -1047,7 +1171,7 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
 }
 
 function renderFlow() {
-  const weekMeals = recentMeals(7);
+  const weekMeals = thisWeekMeals();
   const monthMeals = recentMeals(30);
 const weekCounts = countTags(weekMeals);
   const weekHighCarbCount = weekMeals.filter((meal) => meal.carbs === "많이").length;
@@ -1133,6 +1257,36 @@ const weekCounts = countTags(weekMeals);
         `).join("")}
       </div>
     </section>` : ""}
+
+    ${(() => {
+      const recentConditions = thisWeekDateKeys()
+        .reverse()
+        .map((dateKey) => ({ dateKey, note: (state.dailyNotes || {})[dateKey] }))
+        .filter(({ note }) => note?.mood);
+      if (!recentConditions.length) return "";
+      return `
+        <section class="section">
+          <div class="section-head">
+            <h2 class="section-title">이번 주 컨디션</h2>
+          </div>
+          <div class="condition-history">
+            ${recentConditions.map(({ dateKey, note }) => {
+              const cfg = conditionMoodConfig.find((c) => c.id === note.mood);
+              return `
+                <div class="condition-history-item condition-history-item--${note.mood}">
+                  <span class="condition-history-face">${cfg.face}</span>
+                  <div class="condition-history-body">
+                    <span class="condition-history-date">${formatHistoryDate(dateKey)}</span>
+                    ${note.memo ? `<span class="condition-history-memo">${escapeHtml(note.memo)}</span>` : ""}
+                  </div>
+                  <span class="condition-history-label">${cfg.label}</span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </section>
+      `;
+    })()}
 
     <section class="section">
       <div class="insight notice">
@@ -1311,21 +1465,17 @@ function renderSettingsPage() {
           if (!tags.length) return "";
           return `
             <p class="spage-chip-cat">${cat}</p>
-            <div class="spage-chip-grid">
-              ${tags.map((tag) => `
-                <button class="chip ${tag.group} ${state.trackedTags.includes(tag.id) ? "active" : ""}" data-toggle-tracked="${tag.id}">
-                  ${tag.label}
-                </button>
-              `).join("")}
+            <div class="chip-grid">
+              ${tags.map((tag) => renderChip(tag, { active: state.trackedTags.includes(tag.id), attrs: `data-toggle-tracked="${tag.id}"` })).join("")}
             </div>
           `;
         }).join("")}
       ` : `
-        <div class="spage-tracked-chips">
+        <div class="chip-grid">
           ${state.trackedTags.length ? state.trackedTags.map((id) => {
             const tag = tagById(id);
             if (!tag) return "";
-            return `<span class="chip ${tag.group} active" style="pointer-events:none">${tag.label}</span>`;
+            return renderChip(tag, { active: true, disabled: true });
           }).join("") : `<span class="spage-sublabel" style="margin:0">아직 선택된 항목이 없어요</span>`}
         </div>
       `}
@@ -1341,6 +1491,22 @@ function renderSettingsPage() {
         `).join("") : `
           <div class="spage-row spage-row--empty">기록 화면에서 ★를 눌러 저장해요</div>
         `}
+      </div>
+
+      <p class="spage-label">컨디션 기록</p>
+      <div class="spage-group">
+        <div class="spage-row" style="cursor:default">
+          <span class="spage-row-label">하루 시작 시간</span>
+          <input
+            class="spage-time-input"
+            type="time"
+            data-condition-hour
+            value="${String(state.conditionPromptHour).padStart(2, "0")}:00"
+            step="3600"
+            aria-label="컨디션 알림 시작 시간"
+          />
+        </div>
+        <div class="spage-row spage-row--empty" style="cursor:default">이 시간 이후 처음 앱을 열 때 컨디션을 물어봐요</div>
       </div>
 
       <p class="spage-label">계정</p>
@@ -1478,13 +1644,7 @@ function renderEditor() {
                     <div class="chip-grid">
                       ${editorTags
                         .filter((tag) => tag.category === category)
-                        .map(
-                          (tag) => `
-                            <button type="button" class="chip ${tag.group} ${editor.tags.includes(tag.id) ? "active" : ""}" data-editor-tag="${tag.id}">
-                              ${tag.label}
-                            </button>
-                          `
-                        )
+                        .map((tag) => renderChip(tag, { active: editor.tags.includes(tag.id), attrs: `data-editor-tag="${tag.id}"` }))
                         .join("")}
                     </div>
                   </div>
@@ -2053,6 +2213,69 @@ function bindEvents() {
   document.querySelector("[data-sign-out]")?.addEventListener("click", async () => {
     await auth.signOut();
   });
+
+  // Condition sheet
+  document.querySelectorAll("[data-open-condition-sheet]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const dateKey = viewedDate;
+      conditionSheetDate = dateKey;
+      conditionSheetSelectedMood = (state.dailyNotes || {})[dateKey]?.mood || null;
+      conditionSheetOpen = true;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-close-condition-sheet]").forEach((el) => {
+    el.addEventListener("click", () => {
+      conditionSheetOpen = false;
+      conditionSheetDate = null;
+      conditionSheetSelectedMood = null;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-skip-condition]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.lastConditionSkippedDate = todayKey();
+      conditionSheetOpen = false;
+      conditionSheetDate = null;
+      conditionSheetSelectedMood = null;
+      saveState();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-mood]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      conditionSheetSelectedMood = btn.dataset.mood;
+      document.querySelectorAll("[data-mood]").forEach((b) => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      const saveBtn = document.querySelector("[data-save-condition-sheet]");
+      if (saveBtn) saveBtn.removeAttribute("disabled");
+    });
+  });
+
+  document.querySelector("[data-save-condition-sheet]")?.addEventListener("click", () => {
+    if (!conditionSheetSelectedMood) return;
+    const raw = document.getElementById("condition-sheet-memo")?.value || "";
+    const memo = Array.from(raw).slice(0, conditionNoteLimit).join("").trim();
+    const dateKey = conditionSheetDate || todayKey();
+    state.dailyNotes = { ...(state.dailyNotes || {}), [dateKey]: { mood: conditionSheetSelectedMood, memo } };
+    conditionSheetOpen = false;
+    conditionSheetDate = null;
+    conditionSheetSelectedMood = null;
+    saveState();
+    render();
+  });
+
+  document.querySelector("[data-condition-hour]")?.addEventListener("change", (e) => {
+    const [h] = e.target.value.split(":");
+    const hour = Number(h);
+    if (Number.isInteger(hour) && hour >= 0 && hour <= 23) {
+      state.conditionPromptHour = hour;
+      saveState();
+    }
+  });
 }
 
 function syncEditorFromForm() {
@@ -2314,7 +2537,7 @@ function bindSwipeNavigation() {
   }, { passive: true });
 
   document.addEventListener("touchend", (e) => {
-    if (activeTab !== "today" || editor || mealDetailId || settingsOpen || datePickerOpen) return;
+    if (activeTab !== "today" || editor || mealDetailId || settingsOpen || datePickerOpen || conditionSheetOpen) return;
 
     const dx = e.changedTouches[0].clientX - startX;
     const dy = e.changedTouches[0].clientY - startY;
@@ -2355,6 +2578,11 @@ async function init() {
     });
   }
   render();
+  checkConditionPrompt();
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkConditionPrompt();
+  });
 
   auth.onAuthStateChanged(async (user) => {
     currentUser = user;
