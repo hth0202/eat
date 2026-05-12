@@ -1,6 +1,7 @@
+import { useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { mealsForDate, countTags, tagById, recommendedSlot, availableSlot } from '../../utils/meal';
-import { todayKey } from '../../utils/date';
+import { todayKey, addDays } from '../../utils/date';
 import DateNav from './DateNav';
 import MealCard from './MealCard';
 import ConditionBar from './ConditionBar';
@@ -25,7 +26,26 @@ function CheckIcon() {
 export default function HomeTab() {
   const appState = useAppStore((s) => s.appState);
   const viewedDate = useAppStore((s) => s.viewedDate);
+  const setViewedDate = useAppStore((s) => s.setViewedDate);
   const openEditor = useAppStore((s) => s.openEditor);
+
+  const touchStart = useRef(null);
+
+  function handleTouchStart(e) {
+    touchStart.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e) {
+    if (touchStart.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current;
+    touchStart.current = null;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0) {
+      if (viewedDate < todayKey()) setViewedDate(addDays(viewedDate, 1));
+    } else {
+      setViewedDate(addDays(viewedDate, -1));
+    }
+  }
 
   const meals = mealsForDate(appState?.meals ?? [], viewedDate);
   const isToday = viewedDate === todayKey();
@@ -63,7 +83,7 @@ export default function HomeTab() {
     .filter(({ tag }) => tag);
 
   return (
-    <div>
+    <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
       <DateNav />
       <ConditionBar dateKey={viewedDate} />
       <InsightBar dateKey={viewedDate} dayCopy={dayCopy} />
