@@ -83,7 +83,7 @@ export default function HomeTab() {
     .filter(({ tag }) => tag);
 
   return (
-    <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
+    <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <DateNav />
       <ConditionBar dateKey={viewedDate} />
       <InsightBar dateKey={viewedDate} dayCopy={dayCopy} />
