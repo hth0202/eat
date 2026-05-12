@@ -15,6 +15,7 @@ export default defineConfig({
         short_name: '끼니록',
         description: '한 끼씩 남기고, 내 식습관 패턴을 살펴보는 기록 앱',
         start_url: '/eat/',
+        scope: '/eat/',
         display: 'standalone',
         background_color: '#ffffff',
         theme_color: '#ffffff',
