@@ -17,7 +17,8 @@ const defaultTags = [
   { id: "comfortable", label: "속 편함", group: "care", category: "먹고 나서", exclusiveGroup: "stomach" },
   { id: "sleepy", label: "졸림", group: "watch", category: "먹고 나서" },
   { id: "bloat", label: "더부룩함", group: "watch", category: "먹고 나서", exclusiveGroup: "stomach" },
-  { id: "heartburn", label: "속쓰림", group: "watch", category: "먹고 나서" }
+  { id: "heartburn", label: "속쓰림", group: "watch", category: "먹고 나서" },
+  { id: "stomachache", label: "배아픔", group: "watch", category: "먹고 나서" }
 ];
 
 const appParams = new URLSearchParams(window.location.search);
@@ -32,7 +33,7 @@ const mealMemoLimit = 100;
 const maxPhotoEdge = 1280;
 const photoQuality = 0.82;
 const repeatableMealSlots = ["간식", "음료"];
-const conditionNoteLimit = 50;
+const conditionNoteLimit = 30;
 
 firebase.initializeApp({
   apiKey: "AIzaSyBY_c_z6l6uY8GY_ehbRDF9LJ4hXMIoH6s",
@@ -180,10 +181,21 @@ function migrateSpeed(speed) {
   return speed;
 }
 
+function parseTime(t) {
+  const [h, m] = (t || "12:00").split(":").map(Number);
+  return { period: h < 12 ? "오전" : "오후", hour: h % 12 || 12, minute: m };
+}
+
+function formatTimeDisplay(t) {
+  if (!t) return "";
+  const { period, hour, minute } = parseTime(t);
+  return `${period} ${hour}:${String(minute).padStart(2, "0")}`;
+}
+
 function normalizeState(raw) {
   const validIds = defaultTags.map((tag) => tag.id);
   const removedIds = ["slow", "overeat", "sweet-drink"];
-  const shouldRefreshTagDefaults = raw.settingsVersion !== 5;
+  const shouldRefreshTagDefaults = raw.settingsVersion !== 6;
   const selectedTags = shouldRefreshTagDefaults
     ? validIds
     : Array.isArray(raw.selectedTags)
@@ -232,7 +244,7 @@ function normalizeState(raw) {
           };
         })
       : [],
-    settingsVersion: 5,
+    settingsVersion: 6,
     dailyNotes: (raw.dailyNotes && typeof raw.dailyNotes === 'object' && !Array.isArray(raw.dailyNotes))
       ? Object.fromEntries(
           Object.entries(raw.dailyNotes)
@@ -665,15 +677,12 @@ function renderConditionBar(dateKey) {
       </button>
     `;
   }
-  if (isToday(dateKey)) {
-    return `
-      <button class="condition-bar condition-bar--empty" data-open-condition-sheet aria-label="오늘 컨디션 기록">
-        <span class="condition-bar-face">🌅</span>
-        <span>오늘 컨디션을 기록해봐요</span>
-      </button>
-    `;
-  }
-  return "";
+  return `
+    <button class="condition-bar condition-bar--empty" data-open-condition-sheet aria-label="컨디션 기록">
+      <span class="condition-bar-face">🌅</span>
+      <span>컨디션을 기록해봐요</span>
+    </button>
+  `;
 }
 
 function renderConditionSheet() {
@@ -694,7 +703,10 @@ function renderConditionSheet() {
           </button>
         `).join("")}
       </div>
-      <textarea class="condition-sheet-memo" id="condition-sheet-memo" maxlength="${conditionNoteLimit}" placeholder="한 줄 메모 (선택)">${escapeHtml(existingMemo)}</textarea>
+      <div class="condition-memo-wrap">
+        <textarea class="condition-sheet-memo" id="condition-sheet-memo" maxlength="${conditionNoteLimit}" placeholder="한 줄 메모 (선택)">${escapeHtml(existingMemo)}</textarea>
+        <span class="condition-memo-count" id="condition-memo-count">${characterCount(existingMemo)}/${conditionNoteLimit}</span>
+      </div>
       <div class="condition-sheet-actions">
         ${isEdit
           ? `<button class="condition-sheet-cancel" data-close-condition-sheet>취소</button>`
@@ -852,8 +864,11 @@ function renderMealCard(meal) {
     <button class="meal-card" data-view-meal="${meal.id}">
       <div class="meal-card-head">
         <div>
-          <p class="meal-slot-label">${meal.slot}</p>
-          <h3 class="meal-card-title">${formatMealCardTitle(meal.title)}</h3>
+          <p class="meal-slot-label">${meal.slot}${meal.mealTime ? ` · ${formatTimeDisplay(meal.mealTime)}` : ""}</p>
+          <div class="meal-card-title-row">
+            <h3 class="meal-card-title">${formatMealCardTitle(meal.title)}</h3>
+            ${meal.memo ? `<span class="meal-memo-badge" aria-label="메모 있음"><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="4" x2="8" y2="4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><line x1="3" y1="6.5" x2="6.5" y2="6.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></span>` : ""}
+          </div>
           <p class="meal-summary">${details.join(" · ")}</p>
         </div>
         <span class="meal-add">›</span>
@@ -930,6 +945,11 @@ function renderMealDetail() {
                 })
                 .join("")}
             </div>
+          </div>
+
+          <div class="detail-card detail-card--time-row">
+            <label class="detail-label">먹은 시간</label>
+            ${renderTimePicker(detailDraft.mealTime, "detail")}
           </div>
 
           <div class="detail-card">
@@ -1120,8 +1140,12 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
       msg: "짠 게 좀 많았네요, 물을 조금 더 마셔봐요" },
     { score: 310 + s.highCarbCount * 20, cond: s.highCarbCount >= 2 && s.vegCount === 0 && s.proteinCount === 0,
       msg: "탄수화물이 많은 편이었어요, 채소나 단백질을 곁들이면 더 좋아요" },
-    { score: 290 + s.highCarbCount * 20, cond: s.highCarbCount >= 2,
-      msg: "탄수화물이 좀 많았어요, 다음엔 채소나 단백질을 곁들여봐요" },
+    { score: 295 + s.highCarbCount * 20, cond: s.highCarbCount >= 2 && s.vegCount > 0 && s.proteinCount > 0,
+      msg: "탄수화물이 좀 많았어요, 다음엔 조금 줄여봐요" },
+    { score: 290 + s.highCarbCount * 20, cond: s.highCarbCount >= 2 && s.proteinCount > 0 && s.vegCount === 0,
+      msg: "탄수화물이 좀 많았어요, 채소를 곁들여봐요" },
+    { score: 285 + s.highCarbCount * 20, cond: s.highCarbCount >= 2 && s.vegCount > 0 && s.proteinCount === 0,
+      msg: "탄수화물이 좀 많았어요, 단백질을 곁들여봐요" },
     { score: 270 + s.fastCount * 10 + s.highCarbCount * 10, cond: s.fastCount >= 1 && s.highCarbCount >= 1,
       msg: "빠르게 먹고 탄수화물도 많았어요, 천천히 먹으면 포만감이 더 잘 느껴져요" },
     { score: 260 + s.highFullnessCount * 15, cond: s.highFullnessCount >= 2,
@@ -1153,9 +1177,12 @@ function todayInsight(meals, counts, dayCopy = "오늘") {
       msg: "속도 편하고 포만감도 좋았어요, 이런 날이 계속되면 좋겠어요" },
     { score: 130 + s.comfortableCount * 15, cond: s.comfortableCount > 0,
       msg: "속이 편한 하루였네요" },
-    { score: 120 + s.vegCount * 5 + s.proteinCount * 5,
-      cond: s.vegCount > 0 || s.proteinCount > 0,
-      msg: "채소나 단백질을 챙겼어요" },
+    { score: 120 + s.proteinCount * 5,
+      cond: s.proteinCount > 0 && s.vegCount === 0,
+      msg: "단백질을 챙겼어요, 채소도 곁들이면 더 좋아요" },
+    { score: 120 + s.vegCount * 5,
+      cond: s.vegCount > 0 && s.proteinCount === 0,
+      msg: "채소를 챙겼어요, 단백질도 곁들이면 더 좋아요" },
     { score: 110 + s.balancedCount * 15, cond: s.balancedCount >= 2,
       msg: "포만감을 잘 조절한 하루예요" },
     { score: 100 + s.balancedCount * 15, cond: s.balancedCount > 0,
@@ -1562,6 +1589,7 @@ function emptyDraft(slot = recommendedSlot()) {
     fullness: "적당함",
     carbs: "보통",
     speed: "모르겠음",
+    mealTime: null,
     memo: "",
     photos: []
   };
@@ -1579,6 +1607,18 @@ function recommendedSlot() {
     if (!takenMain.has(mainSlots[i])) return mainSlots[i];
   }
   return "간식";
+}
+
+function renderTimePicker(mealTime, prefix) {
+  if (!mealTime) {
+    return `<button type="button" class="meal-time-add" data-${prefix}-set-time>입력</button>`;
+  }
+  return `
+    <div class="meal-time-active">
+      <input type="time" step="1800" class="meal-time-input" value="${mealTime}" data-${prefix}-time-input>
+      <button type="button" class="meal-time-clear" data-${prefix}-time-clear aria-label="시간 삭제">×</button>
+    </div>
+  `;
 }
 
 function renderEditor() {
@@ -1626,6 +1666,11 @@ function renderEditor() {
               })
               .join("")}
           </div>
+        </div>
+
+        <div class="field field--time-row">
+          <label>먹은 시간 <span class="optional">(선택)</span></label>
+          ${renderTimePicker(editor.mealTime, "editor")}
         </div>
 
         <div class="field">
@@ -1816,6 +1861,56 @@ function bindEvents() {
       if (field === "slot") {
         detailDraft.tags = detailDraft.tags.filter((tagId) => visibleTagsForSlot(detailDraft.slot).some((tag) => tag.id === tagId));
       }
+      renderPreservingDetailScroll();
+    });
+  });
+
+  document.querySelectorAll("[data-editor-set-time]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!editor) return;
+      const now = new Date();
+      const m = now.getMinutes() < 30 ? 0 : 30;
+      editor.mealTime = `${String(now.getHours()).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      renderPreservingSheetScroll();
+    });
+  });
+
+  document.querySelectorAll("[data-editor-time-input]").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!editor) return;
+      editor.mealTime = input.value || null;
+    });
+  });
+
+  document.querySelectorAll("[data-editor-time-clear]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!editor) return;
+      editor.mealTime = null;
+      renderPreservingSheetScroll();
+    });
+  });
+
+  document.querySelectorAll("[data-detail-set-time]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!detailDraft) return;
+      const now = new Date();
+      const m = now.getMinutes() < 30 ? 0 : 30;
+      detailDraft.mealTime = `${String(now.getHours()).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      renderPreservingDetailScroll();
+    });
+  });
+
+  document.querySelectorAll("[data-detail-time-input]").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!detailDraft) return;
+      detailDraft.mealTime = input.value || null;
+    });
+  });
+
+  document.querySelectorAll("[data-detail-time-clear]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!detailDraft) return;
+      detailDraft.mealTime = null;
       renderPreservingDetailScroll();
     });
   });
@@ -2245,6 +2340,12 @@ function bindEvents() {
     });
   });
 
+  document.getElementById("condition-sheet-memo")?.addEventListener("input", (e) => {
+    const count = characterCount(e.target.value);
+    const el = document.getElementById("condition-memo-count");
+    if (el) el.textContent = `${count}/${conditionNoteLimit}`;
+  });
+
   document.querySelectorAll("[data-mood]").forEach((btn) => {
     btn.addEventListener("click", () => {
       conditionSheetSelectedMood = btn.dataset.mood;
@@ -2285,6 +2386,8 @@ function syncEditorFromForm() {
   const data = new FormData(form);
   editor.title = trimMealTitle(data.get("title"));
   editor.memo = trimMealMemo(data.get("memo"));
+  const timeInput = form.querySelector("[data-editor-time-input]");
+  if (timeInput) editor.mealTime = timeInput.value || null;
 }
 
 function syncDetailFromForm() {
@@ -2294,6 +2397,8 @@ function syncDetailFromForm() {
   const data = new FormData(form);
   detailDraft.title = trimMealTitle(data.get("title"));
   detailDraft.memo = trimMealMemo(data.get("memo"));
+  const timeInput = form.querySelector("[data-detail-time-input]");
+  if (timeInput) detailDraft.mealTime = timeInput.value || null;
 }
 
 function renderPhotoPreview(photo) {
