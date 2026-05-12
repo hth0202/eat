@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    min-height: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    margin: 0;
+    width: 100%;
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    font-family:
+      'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+      'Noto Sans KR', 'Segoe UI', sans-serif;
+  }
+
+  button, input, textarea {
+    font: inherit;
+  }
+
+  button {
+    border: 0;
+    touch-action: manipulation;
+  }
+
+  h1, h2, h3, p {
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer utilities {
+  .safe-top { padding-top: max(1.5rem, env(safe-area-inset-top)); }
+  .safe-bottom { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+  .pb-nav { padding-bottom: max(96px, calc(72px + env(safe-area-inset-bottom))); }
+  .pb-nav-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .h-nav { height: max(72px, calc(56px + env(safe-area-inset-bottom))); }
+}
+
+/* Bar progress fill animation */
+.bar-fill {
+  transition: width 0.4s ease;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 9999;
+  padding: 10px 20px;
+  border-radius: 100px;
+  background: rgba(25, 31, 40, 0.88);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
