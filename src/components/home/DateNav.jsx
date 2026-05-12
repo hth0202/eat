@@ -109,7 +109,7 @@ export default function DateNav() {
       </button>
 
       <button
-        className="w-11 h-11 grid place-items-center rounded-md bg-surface-ui text-title font-bold text-ink disabled:opacity-38"
+        className="w-11 h-11 grid place-items-center rounded-md bg-surface-ui text-title font-bold text-ink disabled:opacity-30 disabled:cursor-default"
         disabled={isToday}
         onClick={next}
         aria-label="다음 날"
