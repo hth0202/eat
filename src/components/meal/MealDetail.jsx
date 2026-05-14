@@ -388,7 +388,7 @@ export default function MealDetail() {
           </svg>
         </button>
         <button type="button" onClick={closeMealDetail} className="flex-1 h-10 rounded-lg bg-surface-ui text-muted font-semibold text-caption">닫기</button>
-        <button type="button" onClick={handleSave} className="flex-1 h-10 rounded-lg bg-primary text-bg font-semibold text-caption shadow-primary">저장</button>
+        <button type="button" onClick={handleSave} className="flex-1 h-10 rounded-lg bg-primary text-bg font-semibold text-caption">저장</button>
       </div>
     </div>
   );

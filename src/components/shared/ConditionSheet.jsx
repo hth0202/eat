@@ -91,7 +91,7 @@ export default function ConditionSheet() {
             type="button"
             onClick={handleSave}
             disabled={!selectedMood}
-            className="flex-1 min-h-tap rounded-md bg-primary text-bg font-semibold text-caption disabled:opacity-40 shadow-primary"
+            className="flex-1 min-h-tap rounded-md bg-primary text-bg font-semibold text-caption disabled:opacity-40"
           >
             저장
           </button>

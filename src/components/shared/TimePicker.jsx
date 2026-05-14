@@ -1,8 +1,9 @@
 import { useRef, useEffect } from 'react';
 
 const ITEM_H = 44;
-const VISIBLE = 5;
-const COL_H = ITEM_H * VISIBLE; // 220px
+const VISIBLE = 3;
+const COL_H = ITEM_H * VISIBLE; // 132px
+const PAD = Math.floor(VISIBLE / 2); // items above/below center
 
 function WheelColumn({ items, value, getLabel, onChange, width }) {
   const scrollRef = useRef(null);
@@ -45,7 +46,7 @@ function WheelColumn({ items, value, getLabel, onChange, width }) {
       {/* Center highlight — behind scroll content */}
       <div style={{
         position: 'absolute', left: 4, right: 4,
-        top: ITEM_H * 2, height: ITEM_H,
+        top: ITEM_H * PAD, height: ITEM_H,
         background: '#f2f4f0', borderRadius: 8,
         pointerEvents: 'none', zIndex: 1,
       }} />
@@ -64,7 +65,7 @@ function WheelColumn({ items, value, getLabel, onChange, width }) {
         }}
         className="[&::-webkit-scrollbar]:hidden"
       >
-        <div style={{ height: ITEM_H * 2 }} />
+        <div style={{ height: ITEM_H * PAD }} />
         {items.map((item) => (
           <div
             key={item}
@@ -74,20 +75,20 @@ function WheelColumn({ items, value, getLabel, onChange, width }) {
             {getLabel ? getLabel(item) : item}
           </div>
         ))}
-        <div style={{ height: ITEM_H * 2 }} />
+        <div style={{ height: ITEM_H * PAD }} />
       </div>
 
       {/* Top fade — over scroll content */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0,
-        height: ITEM_H * 2,
+        height: ITEM_H * PAD,
         background: 'linear-gradient(to bottom, #fff 20%, transparent)',
         pointerEvents: 'none', zIndex: 3,
       }} />
       {/* Bottom fade */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: ITEM_H * 2,
+        height: ITEM_H * PAD,
         background: 'linear-gradient(to top, #fff 20%, transparent)',
         pointerEvents: 'none', zIndex: 3,
       }} />
