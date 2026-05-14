@@ -29,62 +29,64 @@ export default function DateNav() {
     const total = daysInMonth(pickerMonth);
     const cells = [];
 
-    for (let i = 0; i < firstDay; i++) cells.push(null);
-    for (let d = 1; d <= total; d++) {
-      const key = formatDateKey(new Date(year, month - 1, d));
-      cells.push(key);
-    }
-
-    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    for (let i = firstDay; i > 0; i--) cells.push(formatDateKey(new Date(year, month - 1, 1 - i)));
+    for (let d = 1; d <= total; d++) cells.push(formatDateKey(new Date(year, month - 1, d)));
+    let nd = 1;
+    while (cells.length < 42) cells.push(formatDateKey(new Date(year, month, nd++)));
 
     return (
-      <div className="absolute top-full left-3 right-3 z-10 mt-2 p-3 rounded-xl border border-line/90 bg-surface shadow-sheet">
-        <div className="grid grid-cols-[36px_1fr_36px] items-center gap-2 mb-2">
-          <button
-            className="w-9 h-9 grid place-items-center rounded-sm bg-surface-ui text-title font-bold"
-            onClick={() => setPickerMonth(addMonths(pickerMonth, -1))}
-          >‹</button>
-          <strong className="text-center text-body font-[750]">{formatMonthLabel(pickerMonth)}</strong>
-          <button
-            className="w-9 h-9 grid place-items-center rounded-sm bg-surface-ui text-title font-bold disabled:opacity-35"
-            disabled={pickerMonth >= monthKeyFor(today)}
-            onClick={() => setPickerMonth(addMonths(pickerMonth, 1))}
-          >›</button>
+      <div className="absolute top-full left-3 right-3 z-10 mt-2 px-4 py-3 rounded-xl border border-line/90 bg-surface shadow-sheet">
+        <div className="flex items-center justify-between mb-3">
+          <strong className="text-body font-[750]">{formatMonthLabel(pickerMonth)}</strong>
+          <div className="flex items-center gap-1">
+            <button
+              className="text-caption font-semibold text-muted px-1.5 py-1"
+              onClick={() => { setPickerMonth(today.slice(0, 7)); selectDate(today); }}
+            >오늘</button>
+            <button
+              className="w-8 h-8 grid place-items-center rounded-sm text-title font-bold text-muted"
+              onClick={() => setPickerMonth(addMonths(pickerMonth, -1))}
+            >‹</button>
+            <button
+              className="w-8 h-8 grid place-items-center rounded-sm text-title font-bold text-muted disabled:opacity-35"
+              disabled={pickerMonth >= monthKeyFor(today)}
+              onClick={() => setPickerMonth(addMonths(pickerMonth, 1))}
+            >›</button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-1 mb-1">
-          {weekdays.map((d) => (
+        <div className="grid grid-cols-7 gap-1">
+          {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
             <div key={d} className="text-center text-[11px] font-[650] text-soft">{d}</div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
-          {cells.map((key, i) =>
-            key === null ? (
-              <div key={`e-${i}`} className="h-9" />
-            ) : (
+        <div className="grid grid-cols-7 gap-x-1">
+          {cells.map((key) => {
+            const inMonth = key.slice(0, 7) === pickerMonth;
+            const isFuture = key > today;
+            const dow = new Date(`${key}T00:00:00`).getDay();
+            const textClass =
+              key === viewedDate ? 'bg-primary text-bg' :
+              key === today ? 'text-primary-dark' :
+              isFuture ? 'opacity-20' :
+              dow === 0 ? (inMonth ? 'text-coral' : 'text-coral/40') :
+              dow === 6 ? (inMonth ? 'text-blue-500' : 'text-blue-500/40') :
+              !inMonth ? 'text-soft' :
+              'text-ink';
+            return (
               <button
                 key={key}
-                disabled={key > today}
+                disabled={isFuture}
                 onClick={() => selectDate(key)}
-                className={`h-9 grid place-items-center rounded-sm text-caption font-[650] ${
-                  key === viewedDate ? 'bg-primary text-bg' :
-                  key === today ? 'text-primary-dark' :
-                  'text-ink'
-                } disabled:text-disabled disabled:cursor-default`}
+                className={`h-8 grid place-items-center rounded-sm text-caption font-[650] disabled:cursor-default ${textClass}`}
               >
                 {parseInt(key.slice(-2))}
               </button>
-            )
-          )}
+            );
+          })}
         </div>
 
-        <button
-          className="w-full min-h-[40px] mt-2 rounded-md bg-primary-soft text-primary-dark text-caption font-bold"
-          onClick={() => selectDate(today)}
-        >
-          오늘로 이동
-        </button>
       </div>
     );
   }

@@ -58,7 +58,7 @@ export default function BottomNav() {
 
         {/* FAB */}
         <button
-          className="justify-self-center flex items-center justify-center w-14 h-14 rounded-xl bg-primary text-bg disabled:opacity-40"
+          className="justify-self-center flex items-center justify-center w-14 h-14 rounded-xl bg-primary text-bg shadow-primary disabled:opacity-40"
           disabled={!canAdd}
           onClick={handleAdd}
           aria-label={addLabel}

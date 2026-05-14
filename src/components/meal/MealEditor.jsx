@@ -404,7 +404,7 @@ export default function MealEditor() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="w-full h-12 rounded-xl bg-primary text-bg font-bold text-body disabled:opacity-60"
+          className="w-full h-12 rounded-xl bg-primary text-bg font-bold text-body shadow-primary disabled:opacity-60"
         >
           저장
         </button>

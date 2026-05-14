@@ -56,7 +56,7 @@ export function thisWeekStart() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dow = today.getDay();
-  today.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+  today.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1)); // Monday
   return formatDateKey(today);
 }
 
@@ -70,6 +70,49 @@ export function thisWeekDateKeys() {
     cur = addDays(cur, 1);
   }
   return keys;
+}
+
+export function weekStartOf(dateKey) {
+  const d = dateFromKey(dateKey);
+  const dow = d.getDay();
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1)); // Monday
+  return formatDateKey(d);
+}
+
+export function weekOffsetOf(dateKey) {
+  const diff = (dateFromKey(weekStartOf(dateKey)) - dateFromKey(thisWeekStart())) / (7 * 86400000);
+  return Math.round(diff);
+}
+
+export function weekStartByOffset(offset) {
+  return addDays(thisWeekStart(), offset * 7);
+}
+
+export function weekEndByOffset(offset) {
+  return addDays(weekStartByOffset(offset), 6);
+}
+
+export function weekDateKeysByOffset(offset) {
+  const start = weekStartByOffset(offset);
+  const end = offset === 0 ? todayKey() : weekEndByOffset(offset);
+  const keys = [];
+  let cur = start;
+  while (cur <= end) {
+    keys.push(cur);
+    cur = addDays(cur, 1);
+  }
+  return keys;
+}
+
+export function formatWeekLabel(offset) {
+  const fmt = (key) => new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' }).format(dateFromKey(key));
+  return `${fmt(weekStartByOffset(offset))} – ${fmt(weekEndByOffset(offset))}`;
+}
+
+export function weekTitle(offset) {
+  if (offset === 0) return '이번 주';
+  if (offset === -1) return '지난주';
+  return `${Math.abs(offset)}주 전`;
 }
 
 export function formatHomeDate(dateKey) {

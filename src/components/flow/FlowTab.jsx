@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { thisWeekMeals, recentMeals, countTags, getStreakDays } from '../../utils/meal';
-import { thisWeekDateKeys, formatHistoryDate } from '../../utils/date';
+import { mealsForWeekOffset, recentMeals, countTags, getStreakDays } from '../../utils/meal';
+import { weekDateKeysByOffset, formatWeekLabel, weekTitle, formatHistoryDate } from '../../utils/date';
 import { flowInsight, getWeekHighlights } from '../../utils/insights';
 import { tagById } from '../../utils/meal';
 import { CONDITION_MOODS } from '../../constants';
+import WeekPicker from '../shared/WeekPicker';
 
 const highlightColors = {
   great: 'bg-primary-soft text-primary-dark',
@@ -11,30 +13,53 @@ const highlightColors = {
   watch: 'bg-coral-soft text-coral-dark',
 };
 
+function ChevronLeft() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  );
+}
+
 export default function FlowTab() {
   const appState = useAppStore((s) => s.appState);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const meals = appState?.meals ?? [];
-  const weekMeals = thisWeekMeals(meals);
+  const weekMeals = mealsForWeekOffset(meals, weekOffset);
   const monthMeals = recentMeals(meals, 30);
   const weekCounts = countTags(weekMeals);
   const streak = getStreakDays(meals);
   const highlights = getWeekHighlights(weekMeals, weekCounts, streak);
   const insightText = flowInsight(weekMeals, monthMeals, weekCounts, streak);
 
-  const trackedTags = (appState?.trackedTags ?? [])
-    .map(tagById).filter(Boolean)
-    .map((tag) => ({ ...tag, count: weekCounts[tag.id] || 0 }))
+  const topTags = Object.entries(weekCounts)
+    .map(([id, count]) => ({ ...tagById(id), count }))
+    .filter((t) => t.id && t.count > 0)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
-  const maxCount = Math.max(1, ...trackedTags.map((t) => t.count));
+    .slice(0, 5);
+  const maxCount = Math.max(1, ...topTags.map((t) => t.count));
 
-  const weekConditions = thisWeekDateKeys()
+  const weekConditions = weekDateKeysByOffset(weekOffset)
     .reverse()
     .map((dk) => ({ dateKey: dk, note: appState?.dailyNotes?.[dk] }))
     .filter(({ note }) => note?.mood);
 
+  const isCurrentWeek = weekOffset === 0;
+  const title = weekTitle(weekOffset);
+  const weekLabel = formatWeekLabel(weekOffset);
+
   const metrics = [
-    { value: weekMeals.length, label: '이번 주 기록' },
+    { value: weekMeals.length, label: '기록한 끼니' },
     { value: weekCounts.veg || 0, label: '채소를 챙긴 끼니' },
     { value: weekMeals.filter((m) => m.carbs === '많이').length, label: '탄수화물 많음' },
     { value: weekMeals.filter((m) => m.speed === '20분 이내').length, label: '20분 이내 식사' },
@@ -43,11 +68,52 @@ export default function FlowTab() {
 
   return (
     <div>
+      {/* Week Nav */}
+      <div className="relative flex items-center justify-between mt-5 mb-1">
+        <button
+          onClick={() => setWeekOffset((o) => o - 1)}
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink"
+        >
+          <ChevronLeft />
+        </button>
+        <button onClick={() => setPickerOpen(true)} className="text-center">
+          <p className="text-body font-bold">{title}</p>
+          <p className="text-[11px] text-muted">{weekLabel}</p>
+        </button>
+        <button
+          onClick={() => setWeekOffset((o) => o + 1)}
+          disabled={isCurrentWeek}
+          className="flex items-center justify-center w-9 h-9 rounded-lg text-muted hover:text-ink disabled:opacity-30"
+        >
+          <ChevronRight />
+        </button>
+
+        {pickerOpen && (
+          <WeekPicker
+            weekOffset={weekOffset}
+            onChange={setWeekOffset}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
+      </div>
+
+      {/* Insight */}
+      <section className="mt-4">
+        <div className="p-4 rounded-lg bg-primary-soft text-primary-dark">
+          <div className="mb-2">
+            <span className="text-[11px] font-bold bg-primary text-bg px-2 py-0.5 rounded-full">{title} 패턴</span>
+          </div>
+          <h3 className="font-bold text-body mb-1">
+            {weekMeals.length ? `${title} 기록이에요` : '기록이 없어요'}
+          </h3>
+          <p className="text-caption leading-relaxed">{insightText}</p>
+        </div>
+      </section>
+
       {/* Weekly Summary */}
       <section className="mt-5">
         <div className="mb-3">
-          <h2 className="text-title font-semibold tracking-tight">이번 주 요약</h2>
-          <p className="text-caption text-muted">이번 주 식습관이에요</p>
+          <h2 className="text-title font-semibold tracking-tight">{title} 요약</h2>
         </div>
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))' }}>
           {metrics.map(({ value, label }) => (
@@ -62,9 +128,9 @@ export default function FlowTab() {
       {/* Tag trend */}
       <section className="mt-5">
         <h2 className="text-title font-semibold tracking-tight mb-3">자주 나온 태그</h2>
-        {trackedTags.length ? (
+        {topTags.length ? (
           <div className="grid gap-3">
-            {trackedTags.map((tag) => (
+            {topTags.map((tag) => (
               <div key={tag.id}>
                 <div className="flex justify-between text-caption font-semibold mb-1">
                   <span>{tag.label}</span>
@@ -87,7 +153,7 @@ export default function FlowTab() {
       {/* Highlights */}
       {highlights.length > 0 && (
         <section className="mt-5">
-          <h2 className="text-title font-semibold tracking-tight mb-3">이번 주 하이라이트</h2>
+          <h2 className="text-title font-semibold tracking-tight mb-3">{title} 하이라이트</h2>
           <div className="grid gap-2">
             {highlights.map((h, i) => (
               <div key={i} className={`px-4 py-3 rounded-lg text-caption font-semibold ${highlightColors[h.type] ?? 'bg-surface-ui text-muted'}`}>
@@ -101,7 +167,7 @@ export default function FlowTab() {
       {/* Condition history */}
       {weekConditions.length > 0 && (
         <section className="mt-5">
-          <h2 className="text-title font-semibold tracking-tight mb-3">이번 주 컨디션</h2>
+          <h2 className="text-title font-semibold tracking-tight mb-3">{title} 컨디션</h2>
           <div className="grid gap-2">
             {weekConditions.map(({ dateKey, note }) => {
               const cfg = CONDITION_MOODS.find((c) => c.id === note.mood);
@@ -124,19 +190,6 @@ export default function FlowTab() {
           </div>
         </section>
       )}
-
-      {/* Insight */}
-      <section className="mt-5 mb-2">
-        <div className="p-4 rounded-lg bg-primary-soft text-primary-dark">
-          <div className="mb-2">
-            <span className="text-[11px] font-bold bg-primary text-bg px-2 py-0.5 rounded-full">이번 주 패턴</span>
-          </div>
-          <h3 className="font-bold text-body mb-1">
-            {weekMeals.length ? '이번 주 기록이에요' : '기록을 시작해봐요'}
-          </h3>
-          <p className="text-caption leading-relaxed">{insightText}</p>
-        </div>
-      </section>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import {
   DEFAULT_TAGS, MEAL_SLOT_ORDER, REPEATABLE_SLOTS,
   FULLNESS_OPTIONS, CARB_OPTIONS, SPEED_OPTIONS,
 } from '../constants';
-import { todayKey, thisWeekStart, addDays, dateFromKey, formatDateKey } from './date';
+import { todayKey, thisWeekStart, addDays, dateFromKey, formatDateKey, weekStartByOffset, weekEndByOffset } from './date';
 
 export function tagById(id) {
   return DEFAULT_TAGS.find((t) => t.id === id) ?? null;
@@ -76,6 +76,12 @@ export function mealsForDate(meals, dateKey) {
 export function thisWeekMeals(meals) {
   const start = thisWeekStart();
   const end = todayKey();
+  return meals.filter((m) => m.date >= start && m.date <= end);
+}
+
+export function mealsForWeekOffset(meals, offset) {
+  const start = weekStartByOffset(offset);
+  const end = offset === 0 ? todayKey() : weekEndByOffset(offset);
   return meals.filter((m) => m.date >= start && m.date <= end);
 }
 
