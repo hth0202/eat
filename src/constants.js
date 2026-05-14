@@ -6,6 +6,7 @@ export const DEFAULT_TAGS = [
   { id: 'flour',       label: '밀가루',     group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
   { id: 'sweet',       label: '당(설탕)',    group: 'watch', category: '줄이기' },
   { id: 'caffeine',    label: '카페인',     group: 'watch', category: '줄이기',    onlySlots: ['음료'] },
+  { id: 'carbonated',  label: '탄산',       group: 'watch', category: '줄이기',    onlySlots: ['음료'] },
   { id: 'fried',       label: '기름짐',     group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
   { id: 'spicy',       label: '매움',       group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },
   { id: 'sodium',      label: '나트륨(염분)',group: 'watch', category: '줄이기',    hideInSlots: ['음료'] },

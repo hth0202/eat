@@ -32,14 +32,16 @@ export default function HomeTab() {
   const touchStart = useRef(null);
 
   function handleTouchStart(e) {
-    touchStart.current = e.touches[0].clientX;
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
 
   function handleTouchEnd(e) {
     if (touchStart.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStart.current;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
     touchStart.current = null;
     if (Math.abs(dx) < 50) return;
+    if (Math.abs(dy) > Math.abs(dx)) return;
     if (dx < 0) {
       if (viewedDate < todayKey()) setViewedDate(addDays(viewedDate, 1));
     } else {

@@ -86,7 +86,7 @@ export default {
         sheet: '0 24px 72px rgba(25,31,40,0.22)',
         float: '0 8px 24px rgba(25,31,40,0.06)',
         nav: '0 8px 24px rgba(25,31,40,0.08)',
-        primary: '0 12px 28px rgba(18,183,106,0.28)',
+        primary: '0 5px 14px rgba(18,183,106,0.21)',
       },
       minHeight: {
         tap: '44px',
