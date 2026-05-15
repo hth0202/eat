@@ -120,11 +120,11 @@ export function groupedMealsByDate(meals) {
 
 export function recommendedSlot(meals) {
   const today = todayKey();
-  const hour = new Date().getHours();
   const taken = new Set(meals.filter((m) => m.date === today).map((m) => m.slot));
-  if (hour < 10 && !taken.has('아침')) return '아침';
-  if (hour < 14 && !taken.has('점심')) return '점심';
-  if (hour < 20 && !taken.has('저녁')) return '저녁';
+  const mainOrder = ['아침', '점심', '저녁'];
+  let lastIdx = -1;
+  mainOrder.forEach((slot, i) => { if (taken.has(slot)) lastIdx = i; });
+  if (lastIdx < mainOrder.length - 1) return mainOrder[lastIdx + 1];
   return '간식';
 }
 

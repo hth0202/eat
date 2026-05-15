@@ -17,11 +17,12 @@ const removedIds = ['slow', 'overeat', 'sweet-drink'];
 
 function normalizeState(raw) {
   const shouldRefresh = raw.settingsVersion !== SETTINGS_VERSION;
-  const selectedTags = shouldRefresh
-    ? validIds
-    : Array.isArray(raw.selectedTags)
+  const savedTags = Array.isArray(raw.selectedTags)
     ? raw.selectedTags.filter((id) => validIds.includes(id) && !removedIds.includes(id))
-    : validIds;
+    : null;
+  const selectedTags = shouldRefresh || !savedTags
+    ? validIds
+    : [...new Set([...savedTags, ...validIds.filter((id) => !raw.selectedTags.includes(id) && !removedIds.includes(id))])];
   const trackedTags = Array.isArray(raw.trackedTags)
     ? raw.trackedTags.filter((id) => validIds.includes(id))
     : DEFAULT_TRACKED_TAGS;
