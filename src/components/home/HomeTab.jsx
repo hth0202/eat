@@ -54,7 +54,7 @@ export default function HomeTab() {
   const dayCopy = isToday ? '오늘' : '이날';
 
   const allMeals = appState?.meals ?? [];
-  const preferred = recommendedSlot(allMeals);
+  const preferred = recommendedSlot(allMeals, viewedDate);
   const canAdd = !!availableSlot(allMeals, preferred, null, viewedDate);
 
   function handleOpenEditor() {

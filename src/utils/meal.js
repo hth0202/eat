@@ -118,9 +118,8 @@ export function groupedMealsByDate(meals) {
     .map(([date, ms]) => ({ date, meals: sortMealsForDisplay(ms) }));
 }
 
-export function recommendedSlot(meals) {
-  const today = todayKey();
-  const taken = new Set(meals.filter((m) => m.date === today).map((m) => m.slot));
+export function recommendedSlot(meals, date = todayKey()) {
+  const taken = new Set(meals.filter((m) => m.date === date).map((m) => m.slot));
   const mainOrder = ['아침', '점심', '저녁'];
   let lastIdx = -1;
   mainOrder.forEach((slot, i) => { if (taken.has(slot)) lastIdx = i; });

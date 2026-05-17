@@ -10,7 +10,7 @@ export default function BottomNav() {
   const viewedDate = useAppStore((s) => s.viewedDate);
 
   const meals = appState?.meals ?? [];
-  const preferred = recommendedSlot(meals);
+  const preferred = recommendedSlot(meals, viewedDate);
   const canAdd = !!availableSlot(meals, preferred, null, viewedDate);
   const isToday = viewedDate === todayKey();
   const addLabel = canAdd

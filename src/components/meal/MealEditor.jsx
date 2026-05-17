@@ -342,6 +342,7 @@ export default function MealEditor() {
             placeholder="예: 김밥, 계란국, 샐러드"
             value={draft.title}
             onChange={(e) => update('title', e.target.value)}
+            autoComplete="off"
             autoFocus
           />
           <p className="text-[11px] text-soft mt-1">여러 개면 쉼표로 이어 적어도 좋아요</p>
