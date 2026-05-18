@@ -1,6 +1,6 @@
 import { useAppStore } from '../../store/appStore';
 import { recommendedSlot, availableSlot } from '../../utils/meal';
-import { todayKey } from '../../utils/date';
+import { effectiveDateKey } from '../../utils/date';
 
 export default function BottomNav() {
   const activeTab = useAppStore((s) => s.activeTab);
@@ -10,9 +10,11 @@ export default function BottomNav() {
   const viewedDate = useAppStore((s) => s.viewedDate);
 
   const meals = appState?.meals ?? [];
+  const dayStartHour = appState?.conditionPromptHour ?? 0;
+  const effectiveToday = effectiveDateKey(dayStartHour);
   const preferred = recommendedSlot(meals, viewedDate);
   const canAdd = !!availableSlot(meals, preferred, null, viewedDate);
-  const isToday = viewedDate === todayKey();
+  const isToday = viewedDate === effectiveToday;
   const addLabel = canAdd
     ? `${isToday ? '오늘' : '이날'} 끼니 기록 추가`
     : `${isToday ? '오늘' : '이날'} 기록 가능한 끼니 없음`;

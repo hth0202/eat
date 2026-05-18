@@ -8,7 +8,7 @@ import {
   MEAL_TITLE_LIMIT, MEAL_MEMO_LIMIT, CONDITION_NOTE_LIMIT,
   MAX_PHOTOS_PER_MEAL, SETTINGS_VERSION, STORAGE_KEY,
 } from '../constants';
-import { todayKey } from '../utils/date';
+import { todayKey, effectiveDateKey } from '../utils/date';
 import { applyTagToggle, normalizeTags, migrateSpeed } from '../utils/meal';
 import { trimMealTitle, trimMealMemo } from '../utils/text';
 
@@ -136,7 +136,9 @@ export const useAppStore = create((set, get) => ({
     if (saved) {
       try { parsed = JSON.parse(saved); } catch { /* ignore */ }
     }
-    set({ appState: normalizeState(parsed) });
+    const state = normalizeState(parsed);
+    const hour = state.conditionPromptHour ?? 0;
+    set({ appState: state, viewedDate: effectiveDateKey(hour) });
   },
 
   // ── Persistence ───────────────────────────────────────
@@ -251,7 +253,7 @@ export const useAppStore = create((set, get) => ({
 
   skipCondition() {
     const { appState, saveAppState } = get();
-    saveAppState({ ...appState, lastConditionSkippedDate: todayKey() });
+    saveAppState({ ...appState, lastConditionSkippedDate: effectiveDateKey(appState?.conditionPromptHour ?? 0) });
     set({ conditionSheet: null });
   },
 
@@ -276,7 +278,8 @@ export const useAppStore = create((set, get) => ({
   closePhotoViewer: () => set({ photoViewer: null }),
 
   openConditionSheet(date, selectedMood = null) {
-    set({ conditionSheet: { date: date ?? todayKey(), selectedMood } });
+    const hour = get().appState?.conditionPromptHour ?? 0;
+    set({ conditionSheet: { date: date ?? effectiveDateKey(hour), selectedMood } });
   },
   closeConditionSheet: () => set({ conditionSheet: null }),
   setConditionSheetMood: (mood) =>
@@ -312,7 +315,8 @@ export const useAppStore = create((set, get) => ({
 
   shouldShowConditionPrompt() {
     const { appState } = get();
-    const today = todayKey();
+    const hour = appState?.conditionPromptHour ?? 0;
+    const today = effectiveDateKey(hour);
     if (appState?.dailyNotes?.[today]?.mood) return false;
     if (appState?.lastConditionSkippedDate === today) return false;
     const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));

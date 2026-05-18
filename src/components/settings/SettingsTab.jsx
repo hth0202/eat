@@ -147,7 +147,7 @@ export default function SettingsTab() {
             />
           </div>
           <div className="px-4 py-3 text-caption text-muted">
-            이 시간 이후 처음 앱을 열 때 컨디션을 물어봐요
+            이 시간부터 새 하루가 시작돼요. 컨디션도 이 시간 이후 처음 열 때 물어봐요
           </div>
         </div>
       </div>

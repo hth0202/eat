@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { mealsForDate, countTags, tagById, recommendedSlot, availableSlot } from '../../utils/meal';
-import { todayKey, addDays } from '../../utils/date';
+import { effectiveDateKey, addDays } from '../../utils/date';
 import DateNav from './DateNav';
 import MealCard from './MealCard';
 import ConditionBar from './ConditionBar';
@@ -28,6 +28,8 @@ export default function HomeTab() {
   const viewedDate = useAppStore((s) => s.viewedDate);
   const setViewedDate = useAppStore((s) => s.setViewedDate);
   const openEditor = useAppStore((s) => s.openEditor);
+  const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
+  const effectiveToday = effectiveDateKey(dayStartHour);
 
   const touchStart = useRef(null);
 
@@ -43,14 +45,14 @@ export default function HomeTab() {
     if (Math.abs(dx) < 50) return;
     if (Math.abs(dy) > Math.abs(dx)) return;
     if (dx < 0) {
-      if (viewedDate < todayKey()) setViewedDate(addDays(viewedDate, 1));
+      if (viewedDate < effectiveToday) setViewedDate(addDays(viewedDate, 1));
     } else {
       setViewedDate(addDays(viewedDate, -1));
     }
   }
 
   const meals = mealsForDate(appState?.meals ?? [], viewedDate);
-  const isToday = viewedDate === todayKey();
+  const isToday = viewedDate === effectiveToday;
   const dayCopy = isToday ? '오늘' : '이날';
 
   const allMeals = appState?.meals ?? [];
@@ -125,7 +127,7 @@ export default function HomeTab() {
                 <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))' }}>
                   {topTags.map(({ tag, count }) => (
                     <div key={tag.id} className="min-h-[92px] p-4 rounded-xl bg-surface shadow-float flex flex-col justify-between">
-                      <strong className="text-display font-bold text-green-dark">{count}</strong>
+                      <strong className={`text-display font-bold ${tag.group === 'watch' ? 'text-coral' : 'text-green-dark'}`}>{count}</strong>
                       <span className="text-caption text-soft mt-2 leading-tight">{tag.label}</span>
                     </div>
                   ))}

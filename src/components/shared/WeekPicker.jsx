@@ -1,21 +1,23 @@
 import { useState } from 'react';
+import { useAppStore } from '../../store/appStore';
 import {
-  todayKey, formatDateKey, formatMonthLabel, addMonths, monthKeyFor,
+  effectiveDateKey, formatDateKey, formatMonthLabel, addMonths, monthKeyFor,
   daysInMonth, weekOffsetOf, weekStartByOffset, weekEndByOffset,
 } from '../../utils/date';
 
 export default function WeekPicker({ weekOffset, onChange, onClose }) {
-  const today = todayKey();
+  const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
+  const today = effectiveDateKey(dayStartHour);
 
-  const initialMonth = weekStartByOffset(weekOffset).slice(0, 7);
+  const initialMonth = weekStartByOffset(weekOffset, dayStartHour).slice(0, 7);
   const [pickerMonth, setPickerMonth] = useState(initialMonth);
 
-  const selectedStart = weekStartByOffset(weekOffset);
-  const selectedEnd = weekEndByOffset(weekOffset);
+  const selectedStart = weekStartByOffset(weekOffset, dayStartHour);
+  const selectedEnd = weekEndByOffset(weekOffset, dayStartHour);
 
   function handleDayClick(key) {
     if (key > today) return;
-    onChange(weekOffsetOf(key));
+    onChange(weekOffsetOf(key, dayStartHour));
     onClose();
   }
 

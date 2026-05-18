@@ -2,7 +2,7 @@ import {
   DEFAULT_TAGS, MEAL_SLOT_ORDER, REPEATABLE_SLOTS,
   FULLNESS_OPTIONS, CARB_OPTIONS, SPEED_OPTIONS,
 } from '../constants';
-import { todayKey, thisWeekStart, addDays, dateFromKey, formatDateKey, weekStartByOffset, weekEndByOffset } from './date';
+import { todayKey, effectiveDateKey, effectiveThisWeekStart, addDays, dateFromKey, formatDateKey, weekStartByOffset, weekEndByOffset } from './date';
 
 export function tagById(id) {
   return DEFAULT_TAGS.find((t) => t.id === id) ?? null;
@@ -73,15 +73,15 @@ export function mealsForDate(meals, dateKey) {
   return sortMealsForDisplay(meals.filter((m) => m.date === dateKey));
 }
 
-export function thisWeekMeals(meals) {
-  const start = thisWeekStart();
-  const end = todayKey();
+export function thisWeekMeals(meals, dayStartHour = 0) {
+  const start = effectiveThisWeekStart(dayStartHour);
+  const end = effectiveDateKey(dayStartHour);
   return meals.filter((m) => m.date >= start && m.date <= end);
 }
 
-export function mealsForWeekOffset(meals, offset) {
-  const start = weekStartByOffset(offset);
-  const end = offset === 0 ? todayKey() : weekEndByOffset(offset);
+export function mealsForWeekOffset(meals, offset, dayStartHour = 0) {
+  const start = weekStartByOffset(offset, dayStartHour);
+  const end = offset === 0 ? effectiveDateKey(dayStartHour) : weekEndByOffset(offset, dayStartHour);
   return meals.filter((m) => m.date >= start && m.date <= end);
 }
 
@@ -99,10 +99,10 @@ export function countTags(meals) {
   }, {});
 }
 
-export function getStreakDays(meals) {
+export function getStreakDays(meals, dayStartHour = 0) {
   const dates = new Set(meals.map((m) => m.date));
   let streak = 0;
-  let date = todayKey();
+  let date = effectiveDateKey(dayStartHour);
   while (dates.has(date)) { streak++; date = addDays(date, -1); }
   return streak;
 }

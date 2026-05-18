@@ -149,7 +149,7 @@ export function todayInsight(meals, counts) {
 
 export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
   if (!weekMeals.length) {
-    if (monthMeals.length > 0) return `지난달에 ${monthMeals.length}번 기록했어요, 이번 주도 시작해봐요`;
+    if (monthMeals.length > 0) return '이번 주 기록을 시작해봐요, 작은 기록이 쌓이면 패턴이 보여요';
     return '첫 끼니를 기록하면 이번 주 패턴을 같이 살펴볼게요';
   }
 

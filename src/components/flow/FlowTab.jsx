@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { mealsForWeekOffset, recentMeals, countTags, getStreakDays } from '../../utils/meal';
 import { weekDateKeysByOffset, formatWeekLabel, weekTitle, formatHistoryDate } from '../../utils/date';
@@ -31,14 +31,15 @@ function ChevronRight() {
 
 export default function FlowTab() {
   const appState = useAppStore((s) => s.appState);
+  const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
   const [weekOffset, setWeekOffset] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const meals = appState?.meals ?? [];
-  const weekMeals = mealsForWeekOffset(meals, weekOffset);
+  const weekMeals = mealsForWeekOffset(meals, weekOffset, dayStartHour);
   const monthMeals = recentMeals(meals, 30);
   const weekCounts = countTags(weekMeals);
-  const streak = getStreakDays(meals);
+  const streak = getStreakDays(meals, dayStartHour);
   const highlights = getWeekHighlights(weekMeals, weekCounts, streak);
   const insightText = flowInsight(weekMeals, monthMeals, weekCounts, streak);
 
@@ -49,25 +50,45 @@ export default function FlowTab() {
     .slice(0, 5);
   const maxCount = Math.max(1, ...topTags.map((t) => t.count));
 
-  const weekConditions = weekDateKeysByOffset(weekOffset)
+  const weekConditions = weekDateKeysByOffset(weekOffset, dayStartHour)
     .reverse()
     .map((dk) => ({ dateKey: dk, note: appState?.dailyNotes?.[dk] }))
     .filter(({ note }) => note?.mood);
 
   const isCurrentWeek = weekOffset === 0;
   const title = weekTitle(weekOffset);
-  const weekLabel = formatWeekLabel(weekOffset);
+  const weekLabel = formatWeekLabel(weekOffset, dayStartHour);
+
+  const touchStart = useRef(null);
+
+  function handleTouchStart(e) {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+
+  function handleTouchEnd(e) {
+    if (touchStart.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) < 50) return;
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (dx < 0) {
+      if (!isCurrentWeek) setWeekOffset((o) => o + 1);
+    } else {
+      setWeekOffset((o) => o - 1);
+    }
+  }
 
   const metrics = [
-    { value: weekMeals.length, label: '기록한 끼니' },
-    { value: weekCounts.veg || 0, label: '채소를 챙긴 끼니' },
-    { value: weekMeals.filter((m) => m.carbs === '많이').length, label: '탄수화물 많음' },
-    { value: weekMeals.filter((m) => m.speed === '20분 이내').length, label: '20분 이내 식사' },
-    { value: weekMeals.filter((m) => m.fullness === '적당함').length, label: '적당한 포만감' },
+    { value: weekMeals.length, label: '기록한 끼니', positive: true },
+    { value: weekCounts.veg || 0, label: '채소를 챙긴 끼니', positive: true },
+    { value: weekMeals.filter((m) => m.carbs === '많이').length, label: '탄수화물 많음', positive: false },
+    { value: weekMeals.filter((m) => m.speed === '20분 이내').length, label: '빠른 식사', positive: false },
+    { value: weekMeals.filter((m) => m.fullness === '적당함').length, label: '적당한 포만감', positive: true },
   ];
 
   return (
-    <div>
+    <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {/* Week Nav */}
       <div className="relative flex items-center justify-between mt-5 mb-1">
         <button
@@ -116,9 +137,9 @@ export default function FlowTab() {
           <h2 className="text-title font-semibold tracking-tight">{title} 요약</h2>
         </div>
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))' }}>
-          {metrics.map(({ value, label }) => (
+          {metrics.map(({ value, label, positive }) => (
             <div key={label} className="min-h-[92px] p-4 rounded-xl bg-surface shadow-float flex flex-col justify-between">
-              <strong className="text-display font-bold text-green-dark leading-none">{value}</strong>
+              <strong className={`text-display font-bold leading-none ${positive ? 'text-green-dark' : 'text-coral'}`}>{value}</strong>
               <span className="text-caption text-soft mt-2 leading-tight">{label}</span>
             </div>
           ))}
@@ -134,7 +155,7 @@ export default function FlowTab() {
               <div key={tag.id}>
                 <div className="flex justify-between text-caption font-semibold mb-1">
                   <span>{tag.label}</span>
-                  <span className="text-muted">{tag.count}회</span>
+                  <span className={tag.group === 'watch' ? 'text-coral' : 'text-primary-dark'}>{tag.count}회</span>
                 </div>
                 <div className="h-2 rounded-full bg-surface-ui overflow-hidden">
                   <div

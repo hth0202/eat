@@ -7,6 +7,19 @@ export function formatDateKey(date) {
 
 export const todayKey = () => formatDateKey(new Date());
 
+export function effectiveDateKey(dayStartHour = 0) {
+  const now = new Date();
+  if (dayStartHour > 0 && now.getHours() < dayStartHour) now.setDate(now.getDate() - 1);
+  return formatDateKey(now);
+}
+
+export function effectiveThisWeekStart(dayStartHour = 0) {
+  const d = dateFromKey(effectiveDateKey(dayStartHour));
+  const dow = d.getDay();
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return formatDateKey(d);
+}
+
 export function dateFromKey(dateKey) {
   return new Date(`${dateKey}T00:00:00`);
 }
@@ -79,22 +92,22 @@ export function weekStartOf(dateKey) {
   return formatDateKey(d);
 }
 
-export function weekOffsetOf(dateKey) {
-  const diff = (dateFromKey(weekStartOf(dateKey)) - dateFromKey(thisWeekStart())) / (7 * 86400000);
+export function weekOffsetOf(dateKey, dayStartHour = 0) {
+  const diff = (dateFromKey(weekStartOf(dateKey)) - dateFromKey(effectiveThisWeekStart(dayStartHour))) / (7 * 86400000);
   return Math.round(diff);
 }
 
-export function weekStartByOffset(offset) {
-  return addDays(thisWeekStart(), offset * 7);
+export function weekStartByOffset(offset, dayStartHour = 0) {
+  return addDays(effectiveThisWeekStart(dayStartHour), offset * 7);
 }
 
-export function weekEndByOffset(offset) {
-  return addDays(weekStartByOffset(offset), 6);
+export function weekEndByOffset(offset, dayStartHour = 0) {
+  return addDays(weekStartByOffset(offset, dayStartHour), 6);
 }
 
-export function weekDateKeysByOffset(offset) {
-  const start = weekStartByOffset(offset);
-  const end = offset === 0 ? todayKey() : weekEndByOffset(offset);
+export function weekDateKeysByOffset(offset, dayStartHour = 0) {
+  const start = weekStartByOffset(offset, dayStartHour);
+  const end = offset === 0 ? effectiveDateKey(dayStartHour) : weekEndByOffset(offset, dayStartHour);
   const keys = [];
   let cur = start;
   while (cur <= end) {
@@ -104,9 +117,9 @@ export function weekDateKeysByOffset(offset) {
   return keys;
 }
 
-export function formatWeekLabel(offset) {
+export function formatWeekLabel(offset, dayStartHour = 0) {
   const fmt = (key) => new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' }).format(dateFromKey(key));
-  return `${fmt(weekStartByOffset(offset))} – ${fmt(weekEndByOffset(offset))}`;
+  return `${fmt(weekStartByOffset(offset, dayStartHour))} – ${fmt(weekEndByOffset(offset, dayStartHour))}`;
 }
 
 export function weekTitle(offset) {

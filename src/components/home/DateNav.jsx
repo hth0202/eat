@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import {
-  todayKey, addDays, formatDateKey, dateFromKey,
+  effectiveDateKey, addDays, formatDateKey, dateFromKey,
   formatHomeDate, formatDateSubLabel, formatMonthLabel,
   addMonths, monthKeyFor, daysInMonth,
 } from '../../utils/date';
@@ -9,10 +9,11 @@ import {
 export default function DateNav() {
   const viewedDate = useAppStore((s) => s.viewedDate);
   const setViewedDate = useAppStore((s) => s.setViewedDate);
+  const dayStartHour = useAppStore((s) => s.appState?.conditionPromptHour ?? 0);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(viewedDate.slice(0, 7));
 
-  const today = todayKey();
+  const today = effectiveDateKey(dayStartHour);
   const isToday = viewedDate === today;
 
   function prev() { setViewedDate(addDays(viewedDate, -1)); }
