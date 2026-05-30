@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { auth } from './firebase';
 import { useAppStore } from './store/appStore';
@@ -12,6 +12,7 @@ import MealDetail from './components/meal/MealDetail';
 import ConditionSheet from './components/shared/ConditionSheet';
 import PhotoViewer from './components/shared/PhotoViewer';
 import Toast from './components/shared/Toast';
+import SearchSheet from './components/search/SearchSheet';
 
 function BackIcon() {
   return (
@@ -30,6 +31,14 @@ function GearIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-[22px] h-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+    </svg>
+  );
+}
+
 export default function App() {
   const {
     appState, initState, syncFromCloud,
@@ -37,6 +46,7 @@ export default function App() {
     editor, mealDetailId, conditionSheet, photoViewer,
     openConditionSheet, shouldShowConditionPrompt,
   } = useAppStore();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Init
   useEffect(() => {
@@ -102,13 +112,22 @@ export default function App() {
         <main className="w-full min-h-dvh px-4 pb-nav">
           <header className="sticky top-0 z-10 bg-bg flex items-center justify-between gap-3 mb-3 safe-top pb-3">
             <h1 className="text-[22px] font-bold tracking-[-0.04em] text-ink leading-none">끼니록</h1>
-            <button
-              className={`w-10 h-10 grid place-items-center rounded-full ${settingsOpen ? 'text-primary' : 'text-muted'}`}
-              onClick={openSettings}
-              aria-label="설정"
-            >
-              <GearIcon />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                className="w-10 h-10 grid place-items-center rounded-full text-muted"
+                onClick={() => setSearchOpen(true)}
+                aria-label="검색"
+              >
+                <SearchIcon />
+              </button>
+              <button
+                className={`w-10 h-10 grid place-items-center rounded-full ${settingsOpen ? 'text-primary' : 'text-muted'}`}
+                onClick={openSettings}
+                aria-label="설정"
+              >
+                <GearIcon />
+              </button>
+            </div>
           </header>
 
           {activeTab === 'today' && <HomeTab />}
@@ -119,6 +138,7 @@ export default function App() {
       {!settingsOpen && <BottomNav />}
 
       {/* Overlays */}
+      {searchOpen && <SearchSheet onClose={() => setSearchOpen(false)} />}
       {editor && <MealEditor />}
       {mealDetailId && <MealDetail />}
       {conditionSheet && <ConditionSheet />}

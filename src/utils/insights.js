@@ -165,13 +165,6 @@ export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
     }));
 
   const candidates = [
-    // 연속 기록 마일스톤 (800+)
-    { score: 870 + s.streak,
-      cond: s.streak >= 21,
-      msg: `${s.streak}일 연속이에요, 이 정도면 식습관 흐름이 눈에 보일 거예요` },
-    { score: 820 + s.streak,
-      cond: s.streak >= 14,
-      msg: `${s.streak}일 연속 기록이에요, 이 정도면 패턴이 꽤 보일 거예요` },
     // 불편 신호 (500–699)
     { score: 680 + s.heartburnCount * 20,
       cond: s.heartburnCount >= 3,
@@ -254,9 +247,6 @@ export function flowInsight(weekMeals, monthMeals, counts, streak = 0) {
 
 export function getWeekHighlights(weekMeals, counts, streak) {
   const highlights = [];
-  if (streak >= 7) highlights.push({ type: 'great', text: `${streak}일 연속 기록 중이에요` });
-  else if (streak >= 3) highlights.push({ type: 'good', text: `${streak}일 연속으로 기록하고 있어요` });
-
   if ((counts.comfortable || 0) >= 4) highlights.push({ type: 'good', text: `속이 편한 끼니가 이번 주 ${counts.comfortable}번이에요` });
   if ((counts.protein || 0) >= 4) highlights.push({ type: 'good', text: `단백질을 이번 주 ${counts.protein}번 챙겼어요` });
   if ((counts.veg || 0) >= 4) highlights.push({ type: 'good', text: `채소를 이번 주 ${counts.veg}번 챙겼어요` });

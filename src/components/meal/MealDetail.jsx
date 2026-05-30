@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { usePhotoDB } from '../../hooks/usePhotoDB';
+import { useHistoryBack } from '../../hooks/useHistoryBack';
 import {
   MEAL_SLOTS, FULLNESS_OPTIONS, CARB_OPTIONS, SPEED_OPTIONS,
   MEAL_MEMO_LIMIT, MEAL_TITLE_LIMIT, FAVORITES_LIMIT,
@@ -94,6 +95,8 @@ export default function MealDetail() {
   const openPhotoViewer = useAppStore((s) => s.openPhotoViewer);
   const showToast = useAppStore((s) => s.showToast);
   const photoDB = usePhotoDB();
+
+  useHistoryBack(closeMealDetail);
 
   const galleryRef = useRef(null);
   const replaceRef = useRef(null);

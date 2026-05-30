@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
+import { useHistoryBack } from '../../hooks/useHistoryBack';
 import { CONDITION_MOODS, CONDITION_NOTE_LIMIT } from '../../constants';
 import BottomSheet from './BottomSheet';
 
@@ -10,6 +11,8 @@ export default function ConditionSheet() {
   const saveCondition = useAppStore((s) => s.saveCondition);
   const skipCondition = useAppStore((s) => s.skipCondition);
   const appState = useAppStore((s) => s.appState);
+
+  useHistoryBack(closeConditionSheet);
 
   const dateKey = conditionSheet?.date;
   const selectedMood = conditionSheet?.selectedMood ?? null;

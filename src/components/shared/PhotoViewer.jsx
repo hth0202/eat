@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/appStore';
+import { useHistoryBack } from '../../hooks/useHistoryBack';
 
 export default function PhotoViewer() {
   const photoViewer = useAppStore((s) => s.photoViewer);
@@ -9,6 +10,8 @@ export default function PhotoViewer() {
   useEffect(() => {
     if (photoViewer) setIdx(photoViewer.index ?? 0);
   }, [photoViewer]);
+
+  useHistoryBack(closePhotoViewer);
 
   if (!photoViewer) return null;
   const { photos } = photoViewer;

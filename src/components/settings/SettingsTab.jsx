@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/appStore';
+import { useHistoryBack } from '../../hooks/useHistoryBack';
 import { DEFAULT_TAGS, TRACKED_TAG_LIMIT } from '../../constants';
 import Chip from '../shared/Chip';
 import { tagById } from '../../utils/meal';
@@ -25,7 +26,10 @@ const GoogleIcon = () => (
 
 export default function SettingsTab() {
   const appState = useAppStore((s) => s.appState);
+  const closeSettings = useAppStore((s) => s.closeSettings);
   const toggleTrackedTag = useAppStore((s) => s.toggleTrackedTag);
+
+  useHistoryBack(closeSettings);
   const removeFavorite = useAppStore((s) => s.removeFavorite);
   const setConditionPromptHour = useAppStore((s) => s.setConditionPromptHour);
   const showToast = useAppStore((s) => s.showToast);

@@ -27,7 +27,7 @@ export default function MealCard({ meal }) {
     const items = String(meal.title ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     if (!items.length) return { first: '제목 없음', extra: null };
     const letters = Array.from(items[0]);
-    const truncated = letters.length > 10 ? `${letters.slice(0, 10).join('')}...` : items[0];
+    const truncated = letters.length > 15 ? `${letters.slice(0, 15).join('')}...` : items[0];
     return { first: truncated, extra: items.length - 1 || null };
   })();
 
